@@ -1,25 +1,24 @@
 package com.bookverse.integration.mail;
 
-import com.resend.Resend;
-import com.resend.core.exception.ResendException;
-import com.resend.services.emails.model.CreateEmailOptions;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 @Slf4j
-public class ResendMailService implements MailService {
+public class SmtpMailService implements MailService {
 
-    private final Resend resend;
-    private final String fromEmail;
+    private final JavaMailSender mailSender;
 
-    public ResendMailService(
-            @Value("${bookverse.resend.api-key}") String apiKey,
-            @Value("${bookverse.resend.from-email}") String fromEmail) {
-        this.resend = new Resend(apiKey);
-        this.fromEmail = fromEmail;
-    }
+    @Value("${bookverse.mail.from-email}")
+    private String fromEmail;
 
     @Override
     public void sendVerificationEmail(String to, String otp) {
@@ -42,17 +41,17 @@ public class ResendMailService implements MailService {
     }
 
     private void sendEmail(String to, String subject, String htmlBody) {
-        CreateEmailOptions params = CreateEmailOptions.builder()
-                .from(fromEmail)
-                .to(to)
-                .subject(subject)
-                .html(htmlBody)
-                .build();
-
         try {
-            resend.emails().send(params);
-        } catch (ResendException e) {
-            log.error("Failed to send email to {}", to, e);
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+            mailSender.send(message);
+        } catch (MessagingException | MailException exception) {
+            log.error("Failed to send email to {}", to, exception);
+            throw new IllegalStateException("Failed to send email", exception);
         }
     }
 }
