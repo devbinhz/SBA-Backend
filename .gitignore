@@ -25,3 +25,7 @@ replay_pid*
 
 # Env files (secrets)
 .env
+.env
+target/
+.idea/
+*.iml
