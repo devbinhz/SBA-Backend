@@ -1,6 +1,7 @@
 package com.bookverse.integration.otp;
 
 import com.bookverse.common.exception.QuotaExceededException;
+import com.bookverse.common.util.HashUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,16 +19,16 @@ public class RedisOtpStore implements OtpStore {
     private long otpExpirationMs;
 
     @Override
-    public void storeOtp(String purpose, String identifier, String otpHash) {
+    public void storeOtp(String purpose, String identifier, String rawOtp) {
         String key = buildKey(purpose, identifier);
-        redisTemplate.opsForValue().set(key, otpHash, Duration.ofMillis(otpExpirationMs));
+        redisTemplate.opsForValue().set(key, HashUtils.sha256(rawOtp), Duration.ofMillis(otpExpirationMs));
     }
 
     @Override
-    public boolean verifyOtp(String purpose, String identifier, String otpHash) {
+    public boolean verifyOtp(String purpose, String identifier, String rawOtp) {
         String key = buildKey(purpose, identifier);
         String storedHash = redisTemplate.opsForValue().get(key);
-        return storedHash != null && storedHash.equals(otpHash);
+        return storedHash != null && storedHash.equals(HashUtils.sha256(rawOtp));
     }
 
     @Override

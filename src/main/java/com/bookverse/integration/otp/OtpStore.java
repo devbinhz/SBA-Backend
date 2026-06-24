@@ -3,14 +3,14 @@ package com.bookverse.integration.otp;
 public interface OtpStore {
 
     /**
-     * Store OTP hash and return true if successful.
+     * Store a hashed representation of the raw OTP.
      */
-    void storeOtp(String purpose, String identifier, String otpHash);
+    void storeOtp(String purpose, String identifier, String rawOtp);
 
     /**
-     * Check if the OTP hash exists and matches.
+     * Hash the submitted raw OTP and check if it matches the stored hash.
      */
-    boolean verifyOtp(String purpose, String identifier, String otpHash);
+    boolean verifyOtp(String purpose, String identifier, String rawOtp);
 
     /**
      * Delete OTP after successful verification.
