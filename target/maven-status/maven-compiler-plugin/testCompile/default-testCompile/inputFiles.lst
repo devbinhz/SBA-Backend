@@ -1,0 +1,9 @@
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\architecture\LayerDependencyTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\common\dto\CommonDtoTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\config\AdminSeederTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\controller\CartControllerTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\service\address\AddressServiceImplTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\service\book\BookServiceImplTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\service\cart\CartServiceTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\service\category\CategoryServiceImplTest.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\test\java\com\bookverse\service\user\UserServiceImplTest.java

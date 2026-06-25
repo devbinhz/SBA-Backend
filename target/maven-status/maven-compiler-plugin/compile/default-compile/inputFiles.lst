@@ -29,6 +29,7 @@ D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\config\Pa
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\config\SecurityConfig.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\AuthController.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\BookController.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\CartController.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\CategoryController.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\StockMovementController.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\controller\UserController.java
@@ -44,6 +45,7 @@ D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\reque
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\book\CreateBookRequestDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\book\StockAdjustmentRequestDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\book\UpdateBookRequestDTO.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\cart\CartItemRequestDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\category\CategoryRequestDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\user\ChangePasswordRequestDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\request\user\SetUserEnabledRequestDTO.java
@@ -53,11 +55,15 @@ D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\respo
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\auth\TokenPairResponseDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\book\BookResponseDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\book\StockMovementResponseDTO.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\cart\CartItemResponseDTO.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\cart\CartResponseDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\category\CategoryResponseDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\dto\response\user\UserResponseDTO.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\Address.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\BaseEntity.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\Book.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\Cart.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\CartItem.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\Category.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\RefreshToken.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\entity\StockMovement.java
@@ -70,10 +76,13 @@ D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\integrati
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\integration\otp\RedisOtpStore.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\mapper\AddressMapper.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\mapper\BookMapper.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\mapper\CartMapper.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\mapper\CategoryMapper.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\mapper\UserMapper.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\AddressRepository.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\BookRepository.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\CartItemRepository.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\CartRepository.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\CategoryRepository.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\RefreshTokenRepository.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\repository\StockMovementRepository.java
@@ -92,6 +101,8 @@ D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\b
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\book\impl\BookServiceImpl.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\book\impl\StockMovementServiceImpl.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\book\StockMovementService.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\cart\CartService.java
+D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\cart\impl\CartServiceImpl.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\category\CategoryService.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\category\impl\CategoryServiceImpl.java
 D:\IT-FPT\SS8\SBA301\Assigment\SBA-Backend\src\main\java\com\bookverse\service\user\impl\UserServiceImpl.java

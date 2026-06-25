@@ -1,0 +1,9 @@
+com\bookverse\config\AdminSeederTest.class
+com\bookverse\architecture\LayerDependencyTest.class
+com\bookverse\service\user\UserServiceImplTest.class
+com\bookverse\controller\CartControllerTest.class
+com\bookverse\service\book\BookServiceImplTest.class
+com\bookverse\common\dto\CommonDtoTest.class
+com\bookverse\service\cart\CartServiceTest.class
+com\bookverse\service\address\AddressServiceImplTest.class
+com\bookverse\service\category\CategoryServiceImplTest.class
