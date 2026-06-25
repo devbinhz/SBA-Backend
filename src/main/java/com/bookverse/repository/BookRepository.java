@@ -18,4 +18,20 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     @Modifying
     @Query("UPDATE Book b SET b.stock = b.stock + :delta WHERE b.id = :id AND (b.stock + :delta) >= 0 AND b.active = true")
     int adjustStockAtomic(@Param("id") Long id, @Param("delta") int delta);
+
+    @Modifying
+    @Query(value = """
+            UPDATE books b
+            SET stock = stock - :quantity
+            WHERE b.id = :bookId
+              AND b.active = TRUE
+              AND b.stock >= :quantity
+              AND EXISTS (
+                  SELECT 1
+                  FROM categories c
+                  WHERE c.id = b.category_id
+                    AND c.active = TRUE
+              )
+            """, nativeQuery = true)
+    int holdStock(@Param("bookId") Long bookId, @Param("quantity") int quantity);
 }

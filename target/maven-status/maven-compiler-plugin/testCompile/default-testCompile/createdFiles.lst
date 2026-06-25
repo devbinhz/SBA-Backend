@@ -1,5 +1,7 @@
 com\bookverse\config\AdminSeederTest.class
 com\bookverse\architecture\LayerDependencyTest.class
+com\bookverse\service\payment\PaymentServiceImplTest.class
+com\bookverse\service\payment\PaymentServiceImplTest$NoopTransactionManager.class
 com\bookverse\service\user\UserServiceImplTest.class
 com\bookverse\controller\CartControllerTest.class
 com\bookverse\service\book\BookServiceImplTest.class

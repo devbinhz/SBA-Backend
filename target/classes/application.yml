@@ -55,9 +55,12 @@ bookverse:
     expiration-ms: ${OTP_EXPIRATION_MS:600000}
   mail:
     from-email: ${SMTP_FROM_EMAIL:${SMTP_USERNAME:}}
-  payos:
-    client-id: ${PAYOS_CLIENT_ID:}
-    api-key: ${PAYOS_API_KEY:}
-    checksum-key: ${PAYOS_CHECKSUM_KEY:}
-    return-url: ${PAYOS_RETURN_URL:http://localhost:5173/payment/success}
-    cancel-url: ${PAYOS_CANCEL_URL:http://localhost:5173/payment/cancel}
+  vnpay:
+    tmn-code: ${VNPAY_TMN_CODE:}
+    hash-secret: ${VNPAY_HASH_SECRET:}
+    payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/success}
+    cancel-url: ${VNPAY_CANCEL_URL:http://localhost:5173/payment/cancel}
+  order:
+    shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
+    expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}

@@ -1,0 +1,5 @@
+# Created at 2026-06-25T19:25:06.967
+Boot Manifest-JAR contains absolute paths in classpath 'D:\02-Workspace\intellij\SBA\SBA-Backend\target\test-classes'
+Hint: <argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+'other' has different root
+

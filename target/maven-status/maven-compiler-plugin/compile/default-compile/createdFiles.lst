@@ -1,3 +1,5 @@
+com\bookverse\integration\payment\PaymentLinkCommand.class
+com\bookverse\config\VnpayProperties.class
 com\bookverse\common\exception\OutOfStockException.class
 com\bookverse\common\dto\ErrorResponse.class
 com\bookverse\entity\Address$AddressBuilder.class
@@ -6,8 +8,10 @@ com\bookverse\dto\request\user\UpdateProfileRequestDTO.class
 com\bookverse\common\exception\OtpInvalidException.class
 com\bookverse\entity\Book.class
 com\bookverse\dto\request\auth\RefreshTokenRequestDTO.class
+com\bookverse\integration\payment\PaymentGateway.class
 com\bookverse\common\exception\OtpExpiredException.class
 com\bookverse\dto\request\address\AddressRequestDTO.class
+com\bookverse\entity\PaymentEvent.class
 com\bookverse\service\auth\AuthService.class
 com\bookverse\entity\Book$BookBuilder.class
 com\bookverse\service\book\StockMovementService.class
@@ -25,14 +29,18 @@ com\bookverse\controller\CartController.class
 com\bookverse\security\CustomUserDetailsService.class
 com\bookverse\entity\Category.class
 com\bookverse\mapper\CategoryMapper.class
+com\bookverse\service\payment\PaymentService.class
 com\bookverse\dto\request\cart\CartItemRequestDTO.class
 com\bookverse\mapper\UserMapper.class
 com\bookverse\service\category\impl\CategoryServiceImpl.class
+com\bookverse\dto\response\payment\PaymentWebhookResponseDTO$PaymentWebhookResponseDTOBuilder.class
+com\bookverse\integration\payment\PaymentWebhookCommand.class
 com\bookverse\dto\request\book\CreateBookRequestDTO$CreateBookRequestDTOBuilder.class
 com\bookverse\service\cart\impl\CartServiceImpl.class
 com\bookverse\common\exception\QuotaExceededException.class
 com\bookverse\controller\UserController.class
 com\bookverse\repository\StockMovementRepository.class
+com\bookverse\controller\PaymentController.class
 com\bookverse\entity\User$UserBuilder.class
 com\bookverse\common\exception\AccountDisabledException.class
 com\bookverse\mapper\AddressMapper.class
@@ -48,11 +56,13 @@ com\bookverse\dto\request\book\StockAdjustmentRequestDTO$StockAdjustmentRequestD
 com\bookverse\config\PasswordEncoderConfig.class
 com\bookverse\dto\response\cart\CartResponseDTO$CartResponseDTOBuilder.class
 com\bookverse\dto\request\auth\ResetPasswordRequestDTO.class
+com\bookverse\integration\payment\PaymentWebhookResult.class
 com\bookverse\dto\request\book\UpdateBookRequestDTO.class
 com\bookverse\repository\CartItemRepository.class
 com\bookverse\dto\response\book\StockMovementResponseDTO.class
 com\bookverse\common\exception\BadRequestException.class
 com\bookverse\dto\response\cart\CartResponseDTO.class
+com\bookverse\dto\response\payment\PaymentWebhookResponseDTO.class
 com\bookverse\repository\UserRepository.class
 com\bookverse\entity\Cart$CartBuilder.class
 com\bookverse\mapper\CartMapper.class
@@ -72,6 +82,7 @@ com\bookverse\config\AdminSeeder.class
 com\bookverse\repository\AddressRepository.class
 com\bookverse\dto\request\auth\ResendVerificationRequestDTO.class
 com\bookverse\dto\response\book\StockMovementResponseDTO$StockMovementResponseDTOBuilder.class
+com\bookverse\repository\PaymentEventRepository.class
 com\bookverse\dto\request\auth\ForgotPasswordRequestDTO.class
 com\bookverse\common\util\SlugUtils.class
 com\bookverse\service\auth\impl\RefreshTokenServiceImpl.class
@@ -79,6 +90,7 @@ com\bookverse\common\exception\ConflictException.class
 com\bookverse\integration\otp\OtpStore.class
 com\bookverse\config\ModelMapperConfig.class
 com\bookverse\common\exception\ResourceNotFoundException.class
+com\bookverse\integration\payment\PaymentLinkResult.class
 com\bookverse\dto\response\address\AddressResponseDTO$AddressResponseDTOBuilder.class
 com\bookverse\entity\Address.class
 com\bookverse\dto\request\book\StockAdjustmentRequestDTO.class
@@ -89,6 +101,7 @@ com\bookverse\service\auth\RefreshTokenService.class
 com\bookverse\dto\request\cart\CartItemRequestDTO$CartItemRequestDTOBuilder.class
 com\bookverse\dto\request\user\SetUserEnabledRequestDTO.class
 com\bookverse\entity\User.class
+com\bookverse\entity\PaymentEvent$PaymentEventBuilder.class
 com\bookverse\mapper\BookMapper.class
 com\bookverse\dto\response\cart\CartItemResponseDTO.class
 com\bookverse\config\JpaAuditingConfig.class
@@ -98,6 +111,7 @@ com\bookverse\security\JwtService.class
 com\bookverse\repository\CartRepository.class
 com\bookverse\service\user\impl\UserServiceImpl.class
 com\bookverse\common\exception\ForbiddenException.class
+com\bookverse\common\exception\PaymentVerificationFailedException.class
 com\bookverse\entity\CartItem.class
 com\bookverse\service\auth\impl\AuthServiceImpl.class
 com\bookverse\security\JwtAuthenticationFilter.class
@@ -118,7 +132,9 @@ com\bookverse\entity\StockMovement.class
 com\bookverse\service\user\UserService.class
 com\bookverse\service\address\AddressService.class
 com\bookverse\common\exception\EmailNotVerifiedException.class
+com\bookverse\service\payment\impl\PaymentServiceImpl.class
 com\bookverse\dto\response\book\BookResponseDTO.class
+com\bookverse\integration\payment\VnpayPaymentGateway.class
 com\bookverse\BookVerseApplication.class
 com\bookverse\dto\request\auth\LoginRequestDTO.class
 com\bookverse\common\exception\UnauthorizedException.class

@@ -11,4 +11,6 @@ import org.springframework.data.domain.Pageable;
 @Repository
 public interface StockMovementRepository extends JpaRepository<StockMovement, Long>, JpaSpecificationExecutor<StockMovement> {
     Page<StockMovement> findByBookId(Long bookId, Pageable pageable);
+
+    boolean existsByOperationKey(String operationKey);
 }

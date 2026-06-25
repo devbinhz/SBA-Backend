@@ -21,4 +21,8 @@ bookverse:
     full-name: BookVerse Admin
   security:
     jwt-secret: change-me-at-least-32-bytes-change-me
-
+  vnpay:
+    tmn-code: test-tmn
+    hash-secret: test-hash-secret
+    payment-url: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+    return-url: http://localhost/payment/success
