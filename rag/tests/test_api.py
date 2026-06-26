@@ -46,7 +46,7 @@ class FakeStore:
     def is_available(self):
         return True
 
-    def search(self, vector, limit, book_id=None):
+    def search(self, vector, limit, book_ids=None):
         return [
             SearchHit(
                 id="chunk-1",
@@ -80,7 +80,7 @@ def test_api_smoke_endpoints():
     assert ingest.status_code == 200
     assert ingest.json()["total_chunks"] == 1
 
-    query = client.post("/query", json={"query": "What is inside?", "book_id": 1, "top_k": 1})
+    query = client.post("/query", json={"query": "What is inside?", "book_ids": [1], "top_k": 1})
     assert query.status_code == 200
     assert query.json()["sources"][0]["file_name"] == "Sample.epub"
     assert query.json()["sources"][0]["book_id"] == 1

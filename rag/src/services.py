@@ -216,6 +216,11 @@ class MongoBookStore:
         image = self.images.find_one({"_id": image_id})
         return _with_id(image)
 
+    def delete_book(self, book_id: int) -> None:
+        self.books.delete_many({"_id": book_id})
+        self.chunks.delete_many({"book_id": book_id})
+        self.images.delete_many({"book_id": book_id})
+
     def _replace_book(
         self,
         *,
@@ -339,15 +344,15 @@ class QdrantStore:
         self,
         vector: list[float],
         limit: int,
-        book_id: int | None = None,
+        book_ids: list[int] | None = None,
     ) -> list[SearchHit]:
         query_filter = None
-        if book_id is not None:
+        if book_ids:
             query_filter = models.Filter(
                 must=[
                     models.FieldCondition(
                         key="book_id",
-                        match=models.MatchValue(value=book_id),
+                        match=models.MatchAny(any=book_ids),
                     )
                 ]
             )

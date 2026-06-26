@@ -10,11 +10,10 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagQueryRequest;
 import com.bookverse.integration.rag.dto.RagQueryResponse;
 import com.bookverse.integration.rag.dto.RagSource;
-import com.bookverse.integration.rag.dto.RagIngestRequest;
-import com.bookverse.integration.rag.dto.RagIngestResponse;
-import com.bookverse.integration.rag.dto.RagIngestItem;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.service.ai.AiChatService;
+import com.bookverse.service.book.BookOwnershipService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,14 +27,16 @@ public class AiChatServiceImpl implements AiChatService {
 
     private final BookRepository bookRepository;
     private final RagClient ragClient;
+    private final BookOwnershipService bookOwnershipService;
 
-    public AiChatServiceImpl(BookRepository bookRepository, RagClient ragClient) {
+    public AiChatServiceImpl(BookRepository bookRepository, RagClient ragClient, BookOwnershipService bookOwnershipService) {
         this.bookRepository = bookRepository;
         this.ragClient = ragClient;
+        this.bookOwnershipService = bookOwnershipService;
     }
 
     @Override
-    public AiChatResponse chat(AiChatRequest request) {
+    public AiChatResponse chat(AiChatRequest request, Long userId) {
         List<Book> books = bookRepository.findAllById(request.bookIds());
         Map<Long, Book> bookMap = books.stream()
                 .collect(Collectors.toMap(Book::getId, Function.identity()));
@@ -50,16 +51,19 @@ public class AiChatServiceImpl implements AiChatService {
             }
         }
 
-        List<RagSource> allSources = new ArrayList<>();
-        for (Long bookId : request.bookIds()) {
-            RagQueryRequest queryReq = new RagQueryRequest(request.query(), bookId, request.topK());
-            RagQueryResponse queryResp = ragClient.query(queryReq);
-            allSources.addAll(queryResp.sources());
+        if (!bookOwnershipService.hasUserPurchasedBooks(userId, request.bookIds())) {
+            throw new AccessDeniedException("Access denied: You have not purchased some of the requested books");
         }
 
-        allSources.sort((a, b) -> Double.compare(b.score(), a.score()));
+        RagQueryRequest queryReq = new RagQueryRequest(request.query(), request.bookIds(), request.topK());
+        RagQueryResponse queryResp = ragClient.query(queryReq);
+        List<RagSource> allSources = queryResp.sources();
+
+        List<RagSource> sortedSources = new ArrayList<>(allSources);
+        sortedSources.sort((a, b) -> Double.compare(b.score(), a.score()));
+
         int limit = request.topK() != null ? request.topK() : 5;
-        List<RagSource> limitedSources = allSources.stream().limit(limit).toList();
+        List<RagSource> limitedSources = sortedSources.stream().limit(limit).toList();
 
         List<ChatSource> chatSources = limitedSources.stream().map(src -> {
             Book book = bookMap.get(src.bookId());
@@ -103,17 +107,5 @@ public class AiChatServiceImpl implements AiChatService {
             return normalized;
         }
         return normalized.substring(0, 277).stripTrailing() + "...";
-    }
-
-    @Override
-    public RagIngestResponse ingest(RagIngestRequest request) {
-        List<RagIngestItem> enrichedItems = request.items().stream().map(item -> {
-            String title = bookRepository.findById(item.bookId())
-                    .map(Book::getTitle)
-                    .orElse(null);
-            return new RagIngestItem(item.bookId(), item.filePath(), title);
-        }).toList();
-
-        return ragClient.ingest(new RagIngestRequest(enrichedItems));
     }
 }

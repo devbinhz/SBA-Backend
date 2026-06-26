@@ -10,6 +10,7 @@ public record MinioProperties(
         @NotBlank String endpoint,
         @NotBlank String accessKey,
         @NotBlank String secretKey,
-        @NotBlank String booksBucket
+        @NotBlank String booksBucket,
+        @NotBlank String thumbnailsBucket
 ) {
 }

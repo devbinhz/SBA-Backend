@@ -49,6 +49,12 @@ public class CreateBookRequestDTO {
 
     private String coverUrl;
 
+    @NotBlank(message = "File key is required")
+    private String fileKey;
+
+    @NotBlank(message = "Cover key is required")
+    private String coverKey;
+
     @Builder.Default
     private boolean active = true;
 }

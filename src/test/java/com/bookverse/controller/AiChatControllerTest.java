@@ -2,10 +2,6 @@ package com.bookverse.controller;
 
 import com.bookverse.dto.request.ai.AiChatRequest;
 import com.bookverse.dto.response.ai.AiChatResponse;
-import com.bookverse.integration.rag.RagClient;
-import com.bookverse.integration.rag.dto.RagHealthResponse;
-import com.bookverse.integration.rag.dto.RagIngestRequest;
-import com.bookverse.integration.rag.dto.RagIngestResponse;
 import com.bookverse.entity.User;
 import com.bookverse.enums.UserRole;
 import com.bookverse.security.JwtService;
@@ -36,7 +32,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,9 +49,6 @@ class AiChatControllerTest {
 
     @MockBean
     private AiChatService aiChatService;
-
-    @MockBean
-    private RagClient ragClient;
 
     @MockBean
     private JwtService jwtService;
@@ -83,7 +75,7 @@ class AiChatControllerTest {
     void chat_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
         AiChatRequest request = new AiChatRequest("What is clean code?", List.of(1L), 5);
         AiChatResponse response = new AiChatResponse("Clean code is...", Collections.emptyList());
-        when(aiChatService.chat(any())).thenReturn(response);
+        when(aiChatService.chat(any(), any())).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/ai/chat")
                         .with(user(securityUser(1L, UserRole.CUSTOMER)))
@@ -92,40 +84,6 @@ class AiChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.answer").value("Clean code is..."));
-    }
-
-    @Test
-    void checkHealth_ShouldReturnHealth_WhenAdminAuthenticated() throws Exception {
-        RagHealthResponse health = new RagHealthResponse("ok", "ok", "ok", "ok");
-        when(ragClient.checkHealth()).thenReturn(health);
-
-        mockMvc.perform(get("/api/v1/ai/health")
-                        .with(user(securityUser(1L, UserRole.ADMIN))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.qdrant").value("ok"));
-    }
-
-    @Test
-    void checkHealth_ShouldReturnForbidden_WhenCustomerAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/v1/ai/health")
-                        .with(user(securityUser(2L, UserRole.CUSTOMER))))
-                .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void ingest_ShouldReturnIngestResponse_WhenAdminAuthenticated() throws Exception {
-        RagIngestRequest request = new RagIngestRequest(Collections.emptyList());
-        RagIngestResponse response = new RagIngestResponse(Collections.emptyList(), Collections.emptyList(), 0);
-        when(aiChatService.ingest(any())).thenReturn(response);
-
-        mockMvc.perform(post("/api/v1/ai/ingest")
-                        .with(user(securityUser(1L, UserRole.ADMIN)))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.total_chunks").value(0));
     }
 
     private SecurityUser securityUser(Long id, UserRole role) {

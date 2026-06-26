@@ -59,7 +59,7 @@ def test_qdrant_store_uses_payload_metadata():
 
     store.delete_points(["old-chunk"])
     store.upsert_chunks([chunk], [[0.1, 0.2]])
-    results = store.search([0.1, 0.2], limit=1, book_id=1)
+    results = store.search([0.1, 0.2], limit=1, book_ids=[1])
 
     assert client.deleted
     point = client.upserted[0]["points"][0]

@@ -45,6 +45,10 @@ public class UpdateBookRequestDTO {
 
     private String coverUrl;
 
+    private String fileKey;
+
+    private String coverKey;
+
     @Builder.Default
     private boolean active = true;
 }

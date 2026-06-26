@@ -72,3 +72,4 @@ bookverse:
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:minioadmin}
     books-bucket: ${MINIO_BOOKS_BUCKET:bookverse-books}
+    thumbnails-bucket: ${MINIO_THUMBNAILS_BUCKET:bookverse-thumbnails}

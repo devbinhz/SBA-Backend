@@ -16,6 +16,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "books")
@@ -84,4 +85,13 @@ public class Book extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    @Column(name = "file_key", length = 500)
+    private String fileKey;
+
+    @Column(name = "cover_key", length = 500)
+    private String coverKey;
+
+    @Column(name = "last_indexed_at")
+    private LocalDateTime lastIndexedAt;
 }

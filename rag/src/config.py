@@ -22,6 +22,7 @@ class Settings:
     mongo_images_collection: str = os.getenv("MONGO_IMAGES_COLLECTION", "images")
     mongo_timeout_ms: int = int(os.getenv("MONGO_TIMEOUT_MS", "1000"))
     qdrant_url: str = os.getenv("QDRANT_URL", "http://localhost:6333")
+    qdrant_catalog_collection: str = os.getenv("QDRANT_CATALOG_COLLECTION", "book_catalog")
     qdrant_collection: str = os.getenv("QDRANT_COLLECTION", "books")
     qdrant_timeout_seconds: int = int(os.getenv("QDRANT_TIMEOUT_SECONDS", "120"))
     qdrant_upsert_batch_size: int = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "64"))

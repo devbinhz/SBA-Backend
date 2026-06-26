@@ -17,7 +17,13 @@ import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.CategoryRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.book.BookService;
+import com.bookverse.service.ai.AdminRagService;
+import com.bookverse.integration.rag.RagClient;
+import com.bookverse.integration.rag.dto.RagCatalogSearchRequest;
+import com.bookverse.integration.rag.dto.RagCatalogSearchResponse;
+import com.bookverse.integration.rag.dto.RagCatalogBookHit;
 import jakarta.persistence.criteria.Predicate;
+import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +46,8 @@ public class BookServiceImpl implements BookService {
     private final StockMovementRepository stockMovementRepository;
     private final com.bookverse.repository.UserRepository userRepository;
     private final BookMapper bookMapper;
+    private final AdminRagService adminRagService;
+    private final RagClient ragClient;
 
     @Override
     @Transactional(readOnly = true)
@@ -52,19 +60,41 @@ public class BookServiceImpl implements BookService {
             String sortParam,
             Pageable pageable) {
 
+        List<Long> semanticBookIds = null;
+        boolean useSemanticSearch = false;
+
+        if (query != null && !query.trim().isEmpty()) {
+            try {
+                RagCatalogSearchResponse response = ragClient.catalogSearch(new RagCatalogSearchRequest(query, 100));
+                if (response != null && response.hits() != null && !response.hits().isEmpty()) {
+                    semanticBookIds = response.hits().stream()
+                            .map(RagCatalogBookHit::bookId)
+                            .toList();
+                    useSemanticSearch = true;
+                }
+            } catch (Exception e) {
+            }
+        }
+
+        final List<Long> finalSemanticBookIds = semanticBookIds;
+        final boolean finalUseSemanticSearch = useSemanticSearch;
+
         Specification<Book> spec = (root, cq, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Active book and active category
             predicates.add(cb.isTrue(root.get("active")));
             predicates.add(cb.isTrue(root.join("category").get("active")));
 
             if (query != null && !query.trim().isEmpty()) {
-                String likePattern = "%" + query.trim().toLowerCase() + "%";
-                Predicate titleLike = cb.like(cb.lower(root.get("title")), likePattern);
-                Predicate authorLike = cb.like(cb.lower(root.get("author")), likePattern);
-                Predicate isbnLike = cb.like(cb.lower(root.get("isbn")), likePattern);
-                predicates.add(cb.or(titleLike, authorLike, isbnLike));
+                if (finalUseSemanticSearch) {
+                    predicates.add(root.get("id").in(finalSemanticBookIds));
+                } else {
+                    String likePattern = "%" + query.trim().toLowerCase() + "%";
+                    Predicate titleLike = cb.like(cb.lower(root.get("title")), likePattern);
+                    Predicate authorLike = cb.like(cb.lower(root.get("author")), likePattern);
+                    Predicate isbnLike = cb.like(cb.lower(root.get("isbn")), likePattern);
+                    predicates.add(cb.or(titleLike, authorLike, isbnLike));
+                }
             }
 
             if (categoryId != null) {
@@ -105,8 +135,13 @@ public class BookServiceImpl implements BookService {
         
         Page<Book> bookPage = bookRepository.findAll(spec, sortedPageable);
         
+        List<Book> content = new ArrayList<>(bookPage.getContent());
+        if (finalUseSemanticSearch && (sortParam == null || sortParam.trim().isEmpty())) {
+            content.sort(Comparator.comparingInt(b -> finalSemanticBookIds.indexOf(b.getId())));
+        }
+        
         return new PageResponseDTO<>(
-                bookPage.getContent().stream().map(bookMapper::toResponse).toList(),
+                content.stream().map(bookMapper::toResponse).toList(),
                 bookPage.getNumber(),
                 bookPage.getSize(),
                 bookPage.getTotalElements(),
@@ -156,6 +191,9 @@ public class BookServiceImpl implements BookService {
             stockMovementRepository.save(movement);
         }
 
+        adminRagService.ingestBookContent(savedBook.getId());
+        adminRagService.upsertBookCatalog(savedBook.getId());
+
         return bookMapper.toResponse(savedBook);
     }
 
@@ -174,10 +212,17 @@ public class BookServiceImpl implements BookService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
+        String oldFileKey = book.getFileKey();
         bookMapper.updateEntity(book, request);
         book.setCategory(category);
         
         Book updatedBook = bookRepository.save(book);
+
+        adminRagService.upsertBookCatalog(updatedBook.getId());
+        if (request.getFileKey() != null && !request.getFileKey().equals(oldFileKey)) {
+            adminRagService.ingestBookContent(updatedBook.getId());
+        }
+
         return bookMapper.toResponse(updatedBook);
     }
 
