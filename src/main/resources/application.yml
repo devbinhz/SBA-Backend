@@ -64,3 +64,11 @@ bookverse:
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
     expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
+  rag:
+    base-url: ${RAG_BASE_URL:http://localhost:8000}
+    timeout-ms: ${RAG_TIMEOUT_MS:10000}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    books-bucket: ${MINIO_BOOKS_BUCKET:bookverse-books}
