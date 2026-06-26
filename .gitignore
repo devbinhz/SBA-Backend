@@ -28,6 +28,7 @@ replay_pid*
 
 # Maven build output
 target/
+.agent/
 
 # IntelliJ IDEA local project files
 .idea/
