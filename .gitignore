@@ -30,6 +30,9 @@ replay_pid*
 target/
 .agent/
 
+# Docker local data
+data/
+
 # IntelliJ IDEA local project files
 .idea/
 *.iml
