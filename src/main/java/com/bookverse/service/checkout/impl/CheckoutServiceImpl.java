@@ -47,8 +47,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -72,7 +74,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     public CheckoutPreviewResponseDTO preview(Long userId, CheckoutRequestDTO request) {
         User user = getValidUser(userId);
         getOwnedAddress(user.getId(), request.getAddressId());
-        List<CartItem> cartItems = getCartItems(user.getId());
+        List<CartItem> cartItems = getSelectedCartItems(user.getId(), selectedCartItemIds(request));
         List<CheckoutLine> lines = validateAndPrice(cartItems);
         return toPreview(lines);
     }
@@ -89,12 +91,9 @@ public class CheckoutServiceImpl implements CheckoutService {
         }
 
         Address address = getOwnedAddress(user.getId(), request.getAddressId());
-        Cart cart = cartRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new CartEmptyException("Cart is empty"));
-        List<CartItem> cartItems = cartItemRepository.findByCartIdOrderByIdAsc(cart.getId());
-        if (cartItems.isEmpty()) {
-            throw new CartEmptyException("Cart is empty");
-        }
+        Cart cart = getCart(user.getId());
+        Set<Long> selectedCartItemIds = selectedCartItemIds(request);
+        List<CartItem> cartItems = getSelectedCartItems(cart, selectedCartItemIds);
 
         List<CheckoutLine> lines = validateAndPrice(cartItems);
         for (CheckoutLine line : lines) {
@@ -143,7 +142,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .note("Order created from checkout")
                 .build());
 
-        cartItemRepository.deleteByCartId(cart.getId());
+        cartItemRepository.deleteByCartIdAndIdIn(cart.getId(), List.copyOf(selectedCartItemIds));
 
         return toCheckoutResponse(order, payment, orderItems);
     }
@@ -165,14 +164,41 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .orElseThrow(() -> new ResourceNotFoundException("Address not found"));
     }
 
-    private List<CartItem> getCartItems(Long userId) {
+    private Cart getCart(Long userId) {
         Cart cart = cartRepository.findByUserId(userId)
                 .orElseThrow(() -> new CartEmptyException("Cart is empty"));
-        List<CartItem> items = cartItemRepository.findByCartIdOrderByIdAsc(cart.getId());
+        return cart;
+    }
+
+    private List<CartItem> getSelectedCartItems(Long userId, Set<Long> selectedCartItemIds) {
+        return getSelectedCartItems(getCart(userId), selectedCartItemIds);
+    }
+
+    private List<CartItem> getSelectedCartItems(Cart cart, Set<Long> selectedCartItemIds) {
+        if (selectedCartItemIds.isEmpty()) {
+            throw new CartEmptyException("No cart items selected");
+        }
+        List<CartItem> items = cartItemRepository.findByCartIdAndIdInOrderByIdAsc(
+                cart.getId(),
+                List.copyOf(selectedCartItemIds)
+        );
         if (items.isEmpty()) {
-            throw new CartEmptyException("Cart is empty");
+            throw new ResourceNotFoundException("Selected cart items not found");
+        }
+        if (items.size() != selectedCartItemIds.size()) {
+            throw new ResourceNotFoundException("One or more selected cart items were not found in your cart");
         }
         return items;
+    }
+
+    private Set<Long> selectedCartItemIds(CheckoutRequestDTO request) {
+        if (request.getCartItemIds() == null || request.getCartItemIds().isEmpty()) {
+            throw new CartEmptyException("No cart items selected");
+        }
+        if (request.getCartItemIds().stream().anyMatch(id -> id == null)) {
+            throw new BadRequestException("Cart item id is required");
+        }
+        return new LinkedHashSet<>(request.getCartItemIds());
     }
 
     private List<CheckoutLine> validateAndPrice(List<CartItem> cartItems) {

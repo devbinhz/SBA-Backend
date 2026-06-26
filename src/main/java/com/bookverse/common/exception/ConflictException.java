@@ -7,5 +7,9 @@ public class ConflictException extends ApiException {
     public ConflictException(String message) {
         super(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", message);
     }
+
+    public ConflictException(String message, String errorType) {
+        super(HttpStatus.CONFLICT, errorType, message);
+    }
 }
 

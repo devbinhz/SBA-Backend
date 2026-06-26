@@ -64,3 +64,7 @@ bookverse:
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
     expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
+  scheduler:
+    expired-orders:
+      fixed-delay-ms: ${EXPIRED_ORDER_SCHEDULER_FIXED_DELAY_MS:60000}
+      batch-size: ${EXPIRED_ORDER_SCHEDULER_BATCH_SIZE:50}

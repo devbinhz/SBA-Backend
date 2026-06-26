@@ -20,6 +20,10 @@ public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificat
     int adjustStockAtomic(@Param("id") Long id, @Param("delta") int delta);
 
     @Modifying
+    @Query("UPDATE Book b SET b.soldCount = b.soldCount + :quantity WHERE b.id = :id")
+    int incrementSoldCountAtomic(@Param("id") Long id, @Param("quantity") int quantity);
+
+    @Modifying
     @Query(value = """
             UPDATE books b
             SET stock = stock - :quantity

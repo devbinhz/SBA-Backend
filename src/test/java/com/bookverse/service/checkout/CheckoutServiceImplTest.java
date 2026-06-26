@@ -91,7 +91,7 @@ class CheckoutServiceImplTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
-        when(cartItemRepository.findByCartIdOrderByIdAsc(9L)).thenReturn(List.of(item));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
 
         var response = checkoutService.preview(1L, request());
 
@@ -102,7 +102,7 @@ class CheckoutServiceImplTest {
     }
 
     @Test
-    void checkoutHoldsStockCreatesPendingPaymentAndClearsCart() {
+    void checkoutHoldsStockCreatesPendingPaymentAndClearsSelectedCartItems() {
         User user = customer();
         Address address = address(user);
         Cart cart = Cart.builder().id(9L).user(user).build();
@@ -112,7 +112,7 @@ class CheckoutServiceImplTest {
         when(orderRepository.findByUserIdAndIdempotencyKey(1L, "key-1")).thenReturn(Optional.empty());
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
-        when(cartItemRepository.findByCartIdOrderByIdAsc(9L)).thenReturn(List.of(item));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
         when(bookRepository.holdStock(10L, 2)).thenReturn(1);
         when(orderRepository.saveAndFlush(any(Order.class))).thenAnswer(invocation -> {
             Order order = invocation.getArgument(0);
@@ -144,7 +144,7 @@ class CheckoutServiceImplTest {
         verify(bookRepository).holdStock(10L, 2);
         verify(stockMovementRepository).saveAll(any());
         verify(orderStatusHistoryRepository).save(any());
-        verify(cartItemRepository).deleteByCartId(9L);
+        verify(cartItemRepository).deleteByCartIdAndIdIn(9L, List.of(3L));
     }
 
     @Test
@@ -162,6 +162,7 @@ class CheckoutServiceImplTest {
     private CheckoutRequestDTO request() {
         CheckoutRequestDTO request = new CheckoutRequestDTO();
         request.setAddressId(5L);
+        request.setCartItemIds(List.of(3L));
         return request;
     }
 

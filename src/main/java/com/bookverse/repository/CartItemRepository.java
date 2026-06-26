@@ -18,10 +18,17 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
     @EntityGraph(attributePaths = {"book", "book.category"})
     List<CartItem> findByCartIdOrderByIdAsc(Long cartId);
 
+    @EntityGraph(attributePaths = {"book", "book.category"})
+    List<CartItem> findByCartIdAndIdInOrderByIdAsc(Long cartId, List<Long> itemIds);
+
     @Modifying
     void deleteByCartId(Long cartId);
     
     @Modifying
     @Query("DELETE FROM CartItem c WHERE c.cart.id = :cartId")
     void deleteAllByCartId(@Param("cartId") Long cartId);
+
+    @Modifying
+    @Query("DELETE FROM CartItem c WHERE c.cart.id = :cartId AND c.id IN :itemIds")
+    void deleteByCartIdAndIdIn(@Param("cartId") Long cartId, @Param("itemIds") List<Long> itemIds);
 }
