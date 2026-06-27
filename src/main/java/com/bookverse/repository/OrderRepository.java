@@ -15,6 +15,9 @@ import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecificationExecutor<Order> {
 
+    @Query("SELECT COALESCE(SUM(o.total), 0) FROM Order o WHERE o.status IN :statuses")
+    long sumRevenueByStatuses(@Param("statuses") List<com.bookverse.enums.OrderStatus> statuses);
+
     Optional<Order> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

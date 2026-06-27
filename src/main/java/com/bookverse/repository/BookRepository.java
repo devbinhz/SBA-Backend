@@ -8,8 +8,15 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface BookRepository extends JpaRepository<Book, Long>, JpaSpecificationExecutor<Book> {
+
+    long countByActiveTrue();
+
+    @Query("SELECT b FROM Book b WHERE b.soldCount > 0 ORDER BY b.soldCount DESC")
+    List<Book> findTopSellingBooks(org.springframework.data.domain.Pageable pageable);
 
     boolean existsByCategoryIdAndActiveTrue(Long categoryId);
 
