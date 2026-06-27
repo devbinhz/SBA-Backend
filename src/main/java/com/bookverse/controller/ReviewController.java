@@ -51,7 +51,6 @@ public class ReviewController {
 
     @DeleteMapping("/reviews/{reviewId}")
     @PreAuthorize("isAuthenticated()")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete a review (Customer/Admin)")
     public ApiResponse<Void> deleteReview(
             @PathVariable Long reviewId,
