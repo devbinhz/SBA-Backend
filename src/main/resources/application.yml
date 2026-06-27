@@ -11,13 +11,18 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
-  flyway:
-    enabled: true
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+      data-locations:
+        - classpath:db/seed/01_users.sql
+        - classpath:db/seed/02_books.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
