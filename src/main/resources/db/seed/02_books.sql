@@ -1,6 +1,4 @@
--- Seed categories and books dynamically
 
--- 1. Insert Categories safely
 INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Business & Finance', 'business-finance', true, now(), now()) ON CONFLICT (name) DO NOTHING;
 INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Technology & Computing', 'technology-computing', true, now(), now()) ON CONFLICT (name) DO NOTHING;
 INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Psychology & Self-Help', 'psychology-self-help', true, now(), now()) ON CONFLICT (name) DO NOTHING;
@@ -13,7 +11,6 @@ INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Soc
 INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Health & Fitness', 'health-fitness', true, now(), now()) ON CONFLICT (name) DO NOTHING;
 INSERT INTO categories (name, slug, active, created_at, updated_at) VALUES ('Religion & Spirituality', 'religion-spirituality', true, now(), now()) ON CONFLICT (name) DO NOTHING;
 
--- 2. Insert Books safely
 INSERT INTO books (title, author, isbn, publisher, publication_year, language, pages, category_id, price, original_price, stock, description, rating_avg, review_count, sold_count, active, created_at, updated_at) 
 VALUES ('101 Creative Problem Solving Techniques: The Handbook of New Ideas for Business', 'James M. Higgins', '9781883629007', 'New Management Publishing Company, Inc.', 1994, 'en', 223, (SELECT id FROM categories WHERE name = 'Business & Finance'), 150000, 200000, 100, 'Cuốn sách 101 Creative Problem Solving Techniques đề cập đến chủ đề giải quyết vấn đề một cách sáng tạo và đổi mới trong môi trường kinh doanh đầy biến động. Nội dung chính của cuốn sách là sự trình bày chi tiết về quy trình giải quyết vấn đề sáng tạo (Creative Problem Solving - CPS) cùng với 101 kỹ thuật cụ thể nhằm kích thích khả năng sáng tạo của cá nhân và nhóm. Các kỹ thuật này bao gồm nhiều phương pháp nổi bật như động não (brainstorming), lập bản đồ tư duy (mind mapping), sử dụng công nghệ hỗ trợ, và nhiều phương pháp phân tích, tạo ra các giải pháp thay thế. Đối tượng phù hợp nhất cho cuốn sách là các nhà quản lý, trưởng nhóm, các chuyên gia và bất kỳ nhân viên nào muốn nâng cao hiệu suất làm việc của bản thân hoặc đội ngũ thông qua tư duy sáng tạo. Giá trị của cuốn sách nằm ở chỗ nó cung cấp một bộ công cụ thực tế, dễ áp dụng, giúp các cá nhân và tổ chức không chỉ nhận diện đúng vấn đề mà còn tạo ra được những ý tưởng đột phá, từ đó nâng cao năng lực cạnh tranh và sự đổi mới liên tục trong doanh nghiệp.', 0, 0, 0, true, now(), now()) ON CONFLICT (isbn) WHERE isbn IS NOT NULL DO NOTHING;
 INSERT INTO books (title, author, isbn, publisher, publication_year, language, pages, category_id, price, original_price, stock, description, rating_avg, review_count, sold_count, active, created_at, updated_at) 

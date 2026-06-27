@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Data
 @Builder
@@ -34,4 +35,7 @@ public class BookResponseDTO {
     private boolean active;
     private Instant createdAt;
     private Instant updatedAt;
+    private String fileKey;
+    private String coverKey;
+    private LocalDateTime lastIndexedAt;
 }

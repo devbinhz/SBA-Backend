@@ -30,6 +30,8 @@ public class BookMapper {
         book.setStock(dto.getStock());
         book.setDescription(dto.getDescription());
         book.setCoverUrl(dto.getCoverUrl());
+        book.setFileKey(dto.getFileKey());
+        book.setCoverKey(dto.getCoverKey());
         book.setActive(dto.isActive());
         // Note: category is mapped in service layer
         return book;
@@ -60,6 +62,9 @@ public class BookMapper {
                 .active(entity.isActive())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .fileKey(entity.getFileKey())
+                .coverKey(entity.getCoverKey())
+                .lastIndexedAt(entity.getLastIndexedAt())
                 .build();
     }
 
@@ -78,6 +83,12 @@ public class BookMapper {
         entity.setOriginalPrice(dto.getOriginalPrice());
         entity.setDescription(dto.getDescription());
         entity.setCoverUrl(dto.getCoverUrl());
+        if (dto.getFileKey() != null) {
+            entity.setFileKey(dto.getFileKey());
+        }
+        if (dto.getCoverKey() != null) {
+            entity.setCoverKey(dto.getCoverKey());
+        }
         entity.setActive(dto.isActive());
         // category will be updated in service
     }
