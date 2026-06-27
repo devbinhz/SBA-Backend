@@ -20,4 +20,13 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
           AND o.status IN ('PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED')
     """)
     long countPurchasedByUserAndBooks(@Param("userId") Long userId, @Param("bookIds") List<Long> bookIds);
+
+    @Query("""
+        SELECT COUNT(oi) > 0 FROM OrderItem oi
+        JOIN oi.order o
+        WHERE o.user.id = :userId
+          AND oi.book.id = :bookId
+          AND o.status = com.bookverse.enums.OrderStatus.DELIVERED
+    """)
+    boolean existsDeliveredOrderForUserAndBook(@Param("userId") Long userId, @Param("bookId") Long bookId);
 }

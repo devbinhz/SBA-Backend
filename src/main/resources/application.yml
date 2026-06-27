@@ -68,7 +68,7 @@ bookverse:
     cancel-url: ${VNPAY_CANCEL_URL:http://localhost:5173/payment/cancel}
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
-    expiration-minutes: ${ORDER_EXPIRATION_MINUTES:2}
+    expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
   scheduler:
     expired-orders:
       fixed-delay-ms: ${EXPIRED_ORDER_SCHEDULER_FIXED_DELAY_MS:60000}
