@@ -1,5 +1,6 @@
 package com.bookverse.mapper;
 
+import com.bookverse.config.MinioProperties;
 import com.bookverse.dto.request.book.CreateBookRequestDTO;
 import com.bookverse.dto.request.book.UpdateBookRequestDTO;
 import com.bookverse.dto.response.book.BookResponseDTO;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Component;
 public class BookMapper {
 
     private final CategoryMapper categoryMapper;
+    private final MinioProperties minioProperties;
 
     public Book toEntity(CreateBookRequestDTO dto) {
         if (dto == null) {
@@ -41,6 +43,10 @@ public class BookMapper {
         if (entity == null) {
             return null;
         }
+        String coverUrl = entity.getCoverUrl();
+        if ((coverUrl == null || coverUrl.isBlank()) && entity.getCoverKey() != null && !entity.getCoverKey().isBlank()) {
+            coverUrl = minioProperties.endpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + entity.getCoverKey();
+        }
         return BookResponseDTO.builder()
                 .id(entity.getId())
                 .title(entity.getTitle())
@@ -55,7 +61,7 @@ public class BookMapper {
                 .originalPrice(entity.getOriginalPrice())
                 .stock(entity.getStock())
                 .description(entity.getDescription())
-                .coverUrl(entity.getCoverUrl())
+                .coverUrl(coverUrl)
                 .ratingAvg(entity.getRatingAvg())
                 .reviewCount(entity.getReviewCount())
                 .soldCount(entity.getSoldCount())

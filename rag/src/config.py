@@ -43,6 +43,7 @@ class Settings:
     }
     default_top_k: int = int(os.getenv("DEFAULT_TOP_K", "5"))
     max_top_k: int = int(os.getenv("MAX_TOP_K", "20"))
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
 
 
 settings = Settings()

@@ -58,6 +58,13 @@ public class AdminRagController {
         return ApiResponse.success(adminRagService.getIndexStatus(bookId));
     }
 
+    @PostMapping("/catalog/upsert/{bookId}")
+    @Operation(summary = "Upsert a single book's metadata into the RAG catalog")
+    public ApiResponse<Void> upsertBookCatalog(@PathVariable Long bookId) {
+        adminRagService.upsertBookCatalog(bookId);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/health")
     @Operation(summary = "Check the health of the RAG service")
     public ApiResponse<RagHealthResponse> checkHealth() {

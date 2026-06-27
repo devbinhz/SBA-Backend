@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,6 +19,27 @@ from src.ingestion import ExtractedImage, ParsedDocument, TextChunk, sanitize_do
 from src.schemas import SearchHit, Source, Usage
 
 
+def _call_openai_api(url: str, api_key: str, payload: dict) -> dict:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        raise RuntimeError(f"OpenAI call failed: {e.code} {e.reason} - {error_body}")
+    except Exception as e:
+        raise RuntimeError(f"OpenAI call failed: {str(e)}")
+
+
 class FakeOpenAIService:
     def __init__(
         self,
@@ -26,8 +50,21 @@ class FakeOpenAIService:
         self.embedding_model = embedding_model or settings.fake_embedding_model
         self.chat_model = chat_model or settings.fake_chat_model
         self.dimensions = dimensions or settings.embedding_dimension
+        self.api_key = settings.openai_api_key
 
     def embed_texts(self, texts: list[str], dimensions: int | None = None) -> list[list[float]]:
+        if self.api_key:
+            payload = {
+                "input": texts,
+                "model": "text-embedding-3-small"
+            }
+            if dimensions:
+                payload["dimensions"] = dimensions
+            try:
+                response = _call_openai_api("https://api.openai.com/v1/embeddings", self.api_key, payload)
+                return [data["embedding"] for data in response["data"]]
+            except Exception:
+                pass
         size = dimensions or self.dimensions
         return [_fake_embedding(text, size) for text in texts]
 
@@ -63,26 +100,57 @@ class FakeOpenAIService:
         }
 
     def make_answer(self, query: str, sources: list[Source]) -> tuple[str, Usage]:
+        if not sources:
+            return "I could not find relevant indexed book context for that question.", Usage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
+        if self.api_key:
+            context_parts = []
+            for index, source in enumerate(sources, start=1):
+                location = f"page {source.page}" if source.page is not None else "no page"
+                context_parts.append(
+                    f"Source [{index}]: File: {source.file_name} ({location})\nContent: {source.text}"
+                )
+            context_str = "\n\n".join(context_parts)
+
+            system_prompt = (
+                "You are a helpful book assistant. Answer the user's question based strictly on the provided book source chunks.\n"
+                "Provide the sources used (e.g. [1], [2]) in your response where appropriate.\n\n"
+                f"Provided book context:\n{context_str}"
+            )
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": query}
+                ],
+                "temperature": 0.3
+            }
+            try:
+                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                answer = response["choices"][0]["message"]["content"]
+                usage_data = response.get("usage", {})
+                prompt_tokens = usage_data.get("prompt_tokens", 0)
+                completion_tokens = usage_data.get("completion_tokens", 0)
+                total_tokens = usage_data.get("total_tokens", 0)
+                return answer, Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
+            except Exception:
+                pass
+
         prompt_tokens = estimate_tokens(query) + sum(
             estimate_tokens(source.text) for source in sources
         )
-
-        if not sources:
-            answer = "I could not find relevant indexed book context for that question."
-        else:
-            source_lines = []
-            for index, source in enumerate(sources, start=1):
-                location = f"page {source.page}" if source.page is not None else "no page"
-                source_lines.append(
-                    f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
-                )
-            answer = (
-                "Fake OpenAI chat response based on retrieved book chunks.\n\n"
-                f"Question: {query}\n\n"
-                "Relevant sources:\n"
-                + "\n".join(source_lines)
+        source_lines = []
+        for index, source in enumerate(sources, start=1):
+            location = f"page {source.page}" if source.page is not None else "no page"
+            source_lines.append(
+                f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
             )
-
+        answer = (
+            "Fake OpenAI chat response based on retrieved book chunks.\n\n"
+            f"Question: {query}\n\n"
+            "Relevant sources:\n"
+            + "\n".join(source_lines)
+        )
         completion_tokens = estimate_tokens(answer)
         return (
             answer,
