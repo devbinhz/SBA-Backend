@@ -31,6 +31,9 @@ class FakeOpenAIService:
         size = dimensions or self.dimensions
         return [_fake_embedding(text, size) for text in texts]
 
+    def embed_text(self, text: str, dimensions: int | None = None) -> list[float]:
+        return self.embed_texts([text], dimensions)[0]
+
     def embeddings_response(
         self,
         input_value: str | list[str],

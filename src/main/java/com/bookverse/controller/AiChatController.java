@@ -2,7 +2,9 @@ package com.bookverse.controller;
 
 import com.bookverse.common.dto.ApiResponse;
 import com.bookverse.dto.request.ai.AiChatRequest;
+import com.bookverse.dto.request.ai.AiRecommendRequest;
 import com.bookverse.dto.response.ai.AiChatResponse;
+import com.bookverse.dto.response.ai.AiRecommendResponse;
 import com.bookverse.service.ai.AiChatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,5 +35,15 @@ public class AiChatController {
             @AuthenticationPrincipal(expression = "user.id") Long userId
     ) {
         return ApiResponse.success(aiChatService.chat(request, userId));
+    }
+
+    @PostMapping("/recommend")
+    @Operation(summary = "Get book recommendations based on user needs")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    public ApiResponse<AiRecommendResponse> recommend(
+            @Valid @RequestBody AiRecommendRequest request,
+            @AuthenticationPrincipal(expression = "user.id") Long userId
+    ) {
+        return ApiResponse.success(aiChatService.recommend(request, userId));
     }
 }
