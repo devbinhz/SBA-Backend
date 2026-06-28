@@ -75,7 +75,7 @@ bookverse:
       batch-size: ${EXPIRED_ORDER_SCHEDULER_BATCH_SIZE:50}
   rag:
     base-url: ${RAG_BASE_URL:http://localhost:8000}
-    timeout-ms: ${RAG_TIMEOUT_MS:10000}
+    timeout-ms: ${RAG_TIMEOUT_MS:300000}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}

@@ -9,7 +9,9 @@ public interface AdminRagService {
     RagIngestResponse ingestBookContent(Long bookId);
     RagIngestResponse ingestBooksContent(List<Long> ids);
     void upsertBookCatalog(Long bookId);
+    void upsertBooksCatalog(List<Long> bookIds);
     void deleteBookIndex(Long bookId);
+    void deleteBooksIndices(List<Long> bookIds);
     RagIndexStatusResponse getIndexStatus(Long bookId);
     RagCatalogStatusResponse getCatalogStatus(Long bookId);
 }

@@ -53,6 +53,13 @@ public class AdminRagController {
         return ApiResponse.success(null);
     }
 
+    @DeleteMapping("/index/bulk")
+    @Operation(summary = "Delete multiple books' indices in bulk")
+    public ApiResponse<Void> deleteBooksIndicesInBulk(@RequestBody List<Long> bookIds) {
+        adminRagService.deleteBooksIndices(bookIds);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/index/{bookId}/status")
     @Operation(summary = "Get RAG indexing status of a book")
     public ApiResponse<RagIndexStatusResponse> getBookIndexStatus(@PathVariable Long bookId) {
@@ -69,6 +76,13 @@ public class AdminRagController {
     @Operation(summary = "Upsert a single book's metadata into the RAG catalog")
     public ApiResponse<Void> upsertBookCatalog(@PathVariable Long bookId) {
         adminRagService.upsertBookCatalog(bookId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/catalog/upsert/bulk")
+    @Operation(summary = "Upsert multiple books' metadata into the RAG catalog in bulk")
+    public ApiResponse<Void> upsertBooksCatalogInBulk(@RequestBody List<Long> bookIds) {
+        adminRagService.upsertBooksCatalog(bookIds);
         return ApiResponse.success(null);
     }
 

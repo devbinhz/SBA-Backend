@@ -97,10 +97,48 @@ public class AdminRagServiceImpl implements AdminRagService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public void upsertBooksCatalog(List<Long> bookIds) {
+        List<RagCatalogUpsertItem> items = new ArrayList<>();
+        for (Long bookId : bookIds) {
+            Book book = bookRepository.findById(bookId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Book not found: " + bookId));
+            String categoryName = book.getCategory() != null ? book.getCategory().getName() : null;
+            items.add(new RagCatalogUpsertItem(
+                    book.getId(),
+                    book.getTitle(),
+                    book.getAuthor(),
+                    categoryName,
+                    book.getPublisher(),
+                    book.getPublicationYear(),
+                    book.getLanguage(),
+                    book.getPages(),
+                    book.getDescription()
+            ));
+        }
+        if (!items.isEmpty()) {
+            RagCatalogUpsertRequest request = new RagCatalogUpsertRequest(items);
+            ragClient.catalogUpsert(request);
+        }
+    }
+
+    @Override
     @Transactional
     public void deleteBookIndex(Long bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book not found: " + bookId));
         ragClient.deleteIndex(bookId);
         ragClient.deleteCatalog(bookId);
+        book.setLastIndexedAt(null);
+        bookRepository.save(book);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBooksIndices(List<Long> bookIds) {
+        for (Long bookId : bookIds) {
+            deleteBookIndex(bookId);
+        }
     }
 
     @Override
