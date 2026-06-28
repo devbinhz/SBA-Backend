@@ -1,5 +1,0 @@
-com\bookverse\config\AdminSeederTest.class
-com\bookverse\architecture\LayerDependencyTest.class
-com\bookverse\common\dto\CommonDtoTest.class
-com\bookverse\service\address\AddressServiceImplTest.class
-com\bookverse\service\user\UserServiceImplTest.class

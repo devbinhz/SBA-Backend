@@ -11,13 +11,18 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
-  flyway:
-    enabled: true
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: always
+      data-locations:
+        - classpath:db/seed/01_users.sql
+        - classpath:db/seed/02_books.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -55,9 +60,25 @@ bookverse:
     expiration-ms: ${OTP_EXPIRATION_MS:600000}
   mail:
     from-email: ${SMTP_FROM_EMAIL:${SMTP_USERNAME:}}
-  payos:
-    client-id: ${PAYOS_CLIENT_ID:}
-    api-key: ${PAYOS_API_KEY:}
-    checksum-key: ${PAYOS_CHECKSUM_KEY:}
-    return-url: ${PAYOS_RETURN_URL:http://localhost:5173/payment/success}
-    cancel-url: ${PAYOS_CANCEL_URL:http://localhost:5173/payment/cancel}
+  vnpay:
+    tmn-code: ${VNPAY_TMN_CODE:}
+    hash-secret: ${VNPAY_HASH_SECRET:}
+    payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+    return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/success}
+    cancel-url: ${VNPAY_CANCEL_URL:http://localhost:5173/payment/cancel}
+  order:
+    shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
+    expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
+  scheduler:
+    expired-orders:
+      fixed-delay-ms: ${EXPIRED_ORDER_SCHEDULER_FIXED_DELAY_MS:60000}
+      batch-size: ${EXPIRED_ORDER_SCHEDULER_BATCH_SIZE:50}
+  rag:
+    base-url: ${RAG_BASE_URL:http://localhost:8000}
+    timeout-ms: ${RAG_TIMEOUT_MS:10000}
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    books-bucket: ${MINIO_BOOKS_BUCKET:bookverse-books}
+    thumbnails-bucket: ${MINIO_THUMBNAILS_BUCKET:bookverse-thumbnails}

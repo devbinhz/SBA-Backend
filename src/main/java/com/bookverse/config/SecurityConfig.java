@@ -62,7 +62,8 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}/reviews").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/payments/payos/webhook").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/payments/vnpay/webhook").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/payments/vnpay/webhook").permitAll()
                         // Any other request needs authentication
                         .anyRequest().authenticated()
                 )

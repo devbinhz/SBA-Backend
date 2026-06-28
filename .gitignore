@@ -25,7 +25,24 @@ replay_pid*
 
 # Env files (secrets)
 .env
-.env
+
+# Maven build output
 target/
+.agent/
+
+# Docker local data
+data/
+
+# IntelliJ IDEA local project files
 .idea/
 *.iml
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Maven Wrapper distributions (heavy binary downloads)
+.mvn/wrapper/dists/
+
+# Keep Maven Wrapper jar even if *.jar is ignored
+!.mvn/wrapper/maven-wrapper.jar

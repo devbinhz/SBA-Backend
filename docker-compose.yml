@@ -2,7 +2,6 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: bookverse
-    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-bookverse}
       POSTGRES_USER: ${POSTGRES_USER:-bookverse}
@@ -10,7 +9,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bookverse} -d ${POSTGRES_DB:-bookverse}"]
       interval: 10s
@@ -20,11 +19,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: bookverse-redis
-    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - ./data/redis:/data
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -32,7 +30,71 @@ services:
       timeout: 5s
       retries: 5
 
-volumes:
-  postgres_data:
-  redis_data:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: bookverse-qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/qdrant:/qdrant/storage
 
+  mongo:
+    image: mongo:7
+    container_name: bookverse-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongo:/data/db
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: bookverse-mongo-express
+    depends_on:
+      - mongo
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_BASICAUTH: "false"
+      ME_CONFIG_BASICAUTH_ENABLED: "false"
+
+  # books-rag:
+  #   build:
+  #     context: ./rag
+  #     dockerfile: Dockerfile
+  #   container_name: bookverse-books-rag
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./rag:/app
+  #     - /app/.venv
+  #   environment:
+  #     - MONGO_URL=mongodb://mongo:27017
+  #     - QDRANT_URL=http://qdrant:6333
+  #     - MINIO_ENDPOINT=http://minio:9000
+  #     - MINIO_ACCESS_KEY=minioadmin
+  #     - MINIO_SECRET_KEY=minioadmin
+  #     - MINIO_BOOKS_BUCKET=bookverse-books
+  #   depends_on:
+  #     - mongo
+  #     - qdrant
+  #     - minio
+
+  minio:
+    image: minio/minio:latest
+    container_name: bookverse-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
