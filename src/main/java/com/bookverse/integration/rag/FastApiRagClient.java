@@ -119,4 +119,29 @@ public class FastApiRagClient implements RagClient {
             throw new RagUnavailableException("Failed to delete RAG catalog: " + ex.getMessage());
         }
     }
+
+    @Override
+    public RagCatalogStatusResponse getCatalogStatus(Long bookId) {
+        try {
+            return restClient.get()
+                    .uri("/catalog/{bookId}/status", bookId)
+                    .retrieve()
+                    .body(RagCatalogStatusResponse.class);
+        } catch (Exception ex) {
+            throw new RagUnavailableException("Failed to get RAG catalog status: " + ex.getMessage());
+        }
+    }
+
+    @Override
+    public RagCatalogRecommendResponse catalogRecommend(RagCatalogRecommendRequest request) {
+        try {
+            return restClient.post()
+                    .uri("/catalog/recommend")
+                    .body(request)
+                    .retrieve()
+                    .body(RagCatalogRecommendResponse.class);
+        } catch (Exception ex) {
+            throw new RagUnavailableException("Failed to get RAG book recommendations: " + ex.getMessage());
+        }
+    }
 }

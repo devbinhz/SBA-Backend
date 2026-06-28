@@ -30,9 +30,9 @@ class Settings:
     fake_embedding_model: str = os.getenv(
         "FAKE_EMBEDDING_MODEL", "text-embedding-3-small"
     )
-    fake_chat_model: str = os.getenv("FAKE_CHAT_MODEL", "gpt-4o-mini")
+    fake_chat_model: str = os.getenv("FAKE_CHAT_MODEL", "gpt-4o")
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
-    chunk_target_tokens: int = int(os.getenv("CHUNK_TARGET_TOKENS", "300"))
+    chunk_target_tokens: int = int(os.getenv("CHUNK_TARGET_TOKENS", "500"))
     chunk_overlap_tokens: int = int(os.getenv("CHUNK_OVERLAP_TOKENS", "100"))
     epub_page_size_chars: int = int(os.getenv("EPUB_PAGE_SIZE_CHARS", "1800"))
     extract_images: bool = os.getenv("EXTRACT_IMAGES", "false").lower() in {
@@ -43,6 +43,7 @@ class Settings:
     }
     default_top_k: int = int(os.getenv("DEFAULT_TOP_K", "5"))
     max_top_k: int = int(os.getenv("MAX_TOP_K", "20"))
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
 
 
 settings = Settings()

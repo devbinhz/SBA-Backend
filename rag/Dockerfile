@@ -8,7 +8,8 @@ COPY pyproject.toml README.md .python-version ./
 
 RUN uv sync
 
-COPY . .
+COPY main.py ./
+COPY src/ ./src/
 
 ENV PATH="/app/.venv/bin:$PATH"
 

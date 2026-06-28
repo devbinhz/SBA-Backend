@@ -5,6 +5,7 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagHealthResponse;
 import com.bookverse.integration.rag.dto.RagIndexStatusResponse;
 import com.bookverse.integration.rag.dto.RagIngestResponse;
+import com.bookverse.integration.rag.dto.RagCatalogStatusResponse;
 import com.bookverse.service.ai.AdminRagService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -35,14 +37,20 @@ public class AdminRagController {
 
     @PostMapping("/ingest/{bookId}")
     @Operation(summary = "Ingest a single book's content into RAG")
-    public ApiResponse<RagIngestResponse> ingestBook(@PathVariable Long bookId) {
-        return ApiResponse.success(adminRagService.ingestBookContent(bookId));
+    public ApiResponse<RagIngestResponse> ingestBook(
+            @PathVariable Long bookId,
+            @RequestParam(required = false) Integer chunkSize,
+            @RequestParam(required = false) Integer overlapSize) {
+        return ApiResponse.success(adminRagService.ingestBookContent(bookId, chunkSize, overlapSize));
     }
 
     @PostMapping("/ingest/bulk")
     @Operation(summary = "Ingest multiple books' content into RAG in bulk")
-    public ApiResponse<RagIngestResponse> ingestBooksInBulk(@RequestBody List<Long> bookIds) {
-        return ApiResponse.success(adminRagService.ingestBooksContent(bookIds));
+    public ApiResponse<RagIngestResponse> ingestBooksInBulk(
+            @RequestBody List<Long> bookIds,
+            @RequestParam(required = false) Integer chunkSize,
+            @RequestParam(required = false) Integer overlapSize) {
+        return ApiResponse.success(adminRagService.ingestBooksContent(bookIds, chunkSize, overlapSize));
     }
 
     @DeleteMapping("/index/{bookId}")
@@ -52,10 +60,37 @@ public class AdminRagController {
         return ApiResponse.success(null);
     }
 
+    @DeleteMapping("/index/bulk")
+    @Operation(summary = "Delete multiple books' indices in bulk")
+    public ApiResponse<Void> deleteBooksIndicesInBulk(@RequestBody List<Long> bookIds) {
+        adminRagService.deleteBooksIndices(bookIds);
+        return ApiResponse.success(null);
+    }
+
     @GetMapping("/index/{bookId}/status")
     @Operation(summary = "Get RAG indexing status of a book")
     public ApiResponse<RagIndexStatusResponse> getBookIndexStatus(@PathVariable Long bookId) {
         return ApiResponse.success(adminRagService.getIndexStatus(bookId));
+    }
+
+    @GetMapping("/catalog/{bookId}/status")
+    @Operation(summary = "Get RAG catalog sync status of a book")
+    public ApiResponse<RagCatalogStatusResponse> getBookCatalogStatus(@PathVariable Long bookId) {
+        return ApiResponse.success(adminRagService.getCatalogStatus(bookId));
+    }
+
+    @PostMapping("/catalog/upsert/{bookId}")
+    @Operation(summary = "Upsert a single book's metadata into the RAG catalog")
+    public ApiResponse<Void> upsertBookCatalog(@PathVariable Long bookId) {
+        adminRagService.upsertBookCatalog(bookId);
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/catalog/upsert/bulk")
+    @Operation(summary = "Upsert multiple books' metadata into the RAG catalog in bulk")
+    public ApiResponse<Void> upsertBooksCatalogInBulk(@RequestBody List<Long> bookIds) {
+        adminRagService.upsertBooksCatalog(bookIds);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/health")

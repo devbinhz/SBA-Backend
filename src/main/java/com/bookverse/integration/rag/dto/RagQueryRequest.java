@@ -6,5 +6,6 @@ import java.util.List;
 public record RagQueryRequest(
         String query,
         @JsonProperty("book_ids") List<Long> bookIds,
+        @JsonProperty("history") List<RagChatHistoryMessage> history,
         @JsonProperty("top_k") Integer topK
 ) {}

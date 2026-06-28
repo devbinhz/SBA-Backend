@@ -12,6 +12,7 @@ import com.bookverse.integration.rag.dto.RagIngestResponse;
 import com.bookverse.integration.rag.dto.RagIndexStatusResponse;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.service.ai.AdminRagService;
+import com.bookverse.integration.rag.dto.RagCatalogStatusResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,13 +34,19 @@ public class AdminRagServiceImpl implements AdminRagService {
     @Override
     @Transactional
     public RagIngestResponse ingestBookContent(Long bookId) {
+        return ingestBookContent(bookId, null, null);
+    }
+
+    @Override
+    @Transactional
+    public RagIngestResponse ingestBookContent(Long bookId, Integer chunkSize, Integer overlapSize) {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
         if (book.getFileKey() == null || book.getFileKey().isBlank()) {
             throw new BadRequestException("Book file has not been uploaded yet");
         }
         RagIngestItem item = new RagIngestItem(book.getId(), book.getFileKey(), book.getTitle());
-        RagIngestRequest request = new RagIngestRequest(List.of(item));
+        RagIngestRequest request = new RagIngestRequest(List.of(item), chunkSize, overlapSize);
         RagIngestResponse response = ragClient.ingest(request);
         if (response.errors() == null || response.errors().isEmpty()) {
             book.setLastIndexedAt(LocalDateTime.now());
@@ -51,6 +58,12 @@ public class AdminRagServiceImpl implements AdminRagService {
     @Override
     @Transactional
     public RagIngestResponse ingestBooksContent(List<Long> ids) {
+        return ingestBooksContent(ids, null, null);
+    }
+
+    @Override
+    @Transactional
+    public RagIngestResponse ingestBooksContent(List<Long> ids, Integer chunkSize, Integer overlapSize) {
         List<RagIngestItem> items = new ArrayList<>();
         List<Book> booksToUpdate = new ArrayList<>();
         for (Long id : ids) {
@@ -62,7 +75,7 @@ public class AdminRagServiceImpl implements AdminRagService {
             items.add(new RagIngestItem(book.getId(), book.getFileKey(), book.getTitle()));
             booksToUpdate.add(book);
         }
-        RagIngestRequest request = new RagIngestRequest(items);
+        RagIngestRequest request = new RagIngestRequest(items, chunkSize, overlapSize);
         RagIngestResponse response = ragClient.ingest(request);
         if (response.errors() == null || response.errors().isEmpty()) {
             LocalDateTime now = LocalDateTime.now();
@@ -96,15 +109,59 @@ public class AdminRagServiceImpl implements AdminRagService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public void upsertBooksCatalog(List<Long> bookIds) {
+        List<RagCatalogUpsertItem> items = new ArrayList<>();
+        for (Long bookId : bookIds) {
+            Book book = bookRepository.findById(bookId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Book not found: " + bookId));
+            String categoryName = book.getCategory() != null ? book.getCategory().getName() : null;
+            items.add(new RagCatalogUpsertItem(
+                    book.getId(),
+                    book.getTitle(),
+                    book.getAuthor(),
+                    categoryName,
+                    book.getPublisher(),
+                    book.getPublicationYear(),
+                    book.getLanguage(),
+                    book.getPages(),
+                    book.getDescription()
+            ));
+        }
+        if (!items.isEmpty()) {
+            RagCatalogUpsertRequest request = new RagCatalogUpsertRequest(items);
+            ragClient.catalogUpsert(request);
+        }
+    }
+
+    @Override
     @Transactional
     public void deleteBookIndex(Long bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book not found: " + bookId));
         ragClient.deleteIndex(bookId);
         ragClient.deleteCatalog(bookId);
+        book.setLastIndexedAt(null);
+        bookRepository.save(book);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBooksIndices(List<Long> bookIds) {
+        for (Long bookId : bookIds) {
+            deleteBookIndex(bookId);
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public RagIndexStatusResponse getIndexStatus(Long bookId) {
         return ragClient.getIndexStatus(bookId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RagCatalogStatusResponse getCatalogStatus(Long bookId) {
+        return ragClient.getCatalogStatus(bookId);
     }
 }
