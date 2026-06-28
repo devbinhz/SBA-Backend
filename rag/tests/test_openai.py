@@ -1,9 +1,9 @@
-from src.services import FakeOpenAIService
+from src.services import OpenAIService
 from src.schemas import Source
 
 
-def test_fake_embeddings_response_matches_openai_shape():
-    service = FakeOpenAIService(dimensions=8)
+def test_embeddings_response_matches_openai_shape():
+    service = OpenAIService(dimensions=8)
 
     response = service.embeddings_response("hello world")
 
@@ -13,8 +13,8 @@ def test_fake_embeddings_response_matches_openai_shape():
     assert response["usage"]["total_tokens"] >= 1
 
 
-def test_fake_answer_uses_source_text_without_preview_field():
-    service = FakeOpenAIService()
+def test_answer_uses_source_text_without_preview_field():
+    service = OpenAIService()
     source = Source(
         book_id=1,
         document_name="Sample",
@@ -26,7 +26,7 @@ def test_fake_answer_uses_source_text_without_preview_field():
         text="A useful source chunk.",
     )
 
-    answer, usage = service.make_answer("What is inside?", [source])
+    answer, cited_sources, usage = service.make_answer("What is inside?", [source])
 
     assert "A useful source chunk." in answer
     assert usage.total_tokens >= usage.prompt_tokens

@@ -84,15 +84,15 @@ def get_book_catalog_string(book_id: int) -> str:
     return f"Book ID: {book_id}"
 
 
-class FakeOpenAIService:
+class OpenAIService:
     def __init__(
         self,
         embedding_model: str | None = None,
         chat_model: str | None = None,
         dimensions: int | None = None,
     ) -> None:
-        self.embedding_model = embedding_model or settings.fake_embedding_model
-        self.chat_model = chat_model or settings.fake_chat_model
+        self.embedding_model = embedding_model or settings.openai_embedding_model
+        self.chat_model = chat_model or settings.openai_chat_model
         self.dimensions = dimensions or settings.embedding_dimension
         self.api_key = settings.openai_api_key
 
@@ -214,6 +214,32 @@ class FakeOpenAIService:
         if not sources:
             return "Tôi không tìm thấy nội dung liên quan trong các cuốn sách đã chọn.", [], Usage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
 
+        prompt_tokens = estimate_tokens(query) + sum(
+            estimate_tokens(source.text) for source in sources
+        )
+        source_lines = []
+        for index, source in enumerate(sources, start=1):
+            location = f"page {source.page}" if source.page is not None else "no page"
+            source_lines.append(
+                f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
+            )
+        answer = (
+            "OpenAI chat response based on retrieved book chunks.\n\n"
+            f"Question: {query}\n\n"
+            "Relevant sources:\n"
+            + "\n".join(source_lines)
+        )
+        completion_tokens = estimate_tokens(answer)
+        return (
+            answer,
+            sources,
+            Usage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=prompt_tokens + completion_tokens,
+            ),
+        )
+
     def recommend_books(self, query: str, books: list[dict], history: list[dict] | None = None) -> tuple[str, list[int]]:
         if not books:
             return "Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.", []
@@ -292,32 +318,6 @@ class FakeOpenAIService:
             if b['id'] in recommended_ids:
                 answer += f"- **{b['title']}** của tác giả {b['author']}\n"
         return answer.strip(), recommended_ids
-
-        prompt_tokens = estimate_tokens(query) + sum(
-            estimate_tokens(source.text) for source in sources
-        )
-        source_lines = []
-        for index, source in enumerate(sources, start=1):
-            location = f"page {source.page}" if source.page is not None else "no page"
-            source_lines.append(
-                f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
-            )
-        answer = (
-            "Fake OpenAI chat response based on retrieved book chunks.\n\n"
-            f"Question: {query}\n\n"
-            "Relevant sources:\n"
-            + "\n".join(source_lines)
-        )
-        completion_tokens = estimate_tokens(answer)
-        return (
-            answer,
-            sources,
-            Usage(
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=prompt_tokens + completion_tokens,
-            ),
-        )
 
     def chat_completion_response(
         self,

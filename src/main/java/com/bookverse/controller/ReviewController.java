@@ -1,6 +1,7 @@
 package com.bookverse.controller;
 
 import com.bookverse.common.dto.ApiResponse;
+import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
 import com.bookverse.security.SecurityUser;
@@ -33,10 +34,17 @@ public class ReviewController {
 
     @GetMapping("/books/{bookId}/reviews")
     @Operation(summary = "Get reviews for a book (Public)")
-    public ApiResponse<Page<ReviewResponseDTO>> getReviewsByBook(
+    public ApiResponse<PageResponseDTO<ReviewResponseDTO>> getReviewsByBook(
             @PathVariable Long bookId,
             Pageable pageable) {
-        return ApiResponse.success(reviewService.getReviewsByBook(bookId, pageable));
+        return ApiResponse.success(PageResponseDTO.from(reviewService.getReviewsByBook(bookId, pageable)));
+    }
+
+    @GetMapping("/admin/reviews")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Get all reviews (Admin)")
+    public ApiResponse<PageResponseDTO<ReviewResponseDTO>> getAllReviews(Pageable pageable) {
+        return ApiResponse.success(PageResponseDTO.from(reviewService.getAllReviews(pageable)));
     }
 
     @PostMapping("/reviews")

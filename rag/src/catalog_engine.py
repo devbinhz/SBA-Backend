@@ -8,15 +8,15 @@ from src.schemas import (
     CatalogUpsertItem,
     CatalogUpsertResponse,
 )
-from src.services import FakeOpenAIService, QdrantStore
+from src.services import OpenAIService, QdrantStore
 
 class CatalogEngine:
     def __init__(
         self,
-        openai_service: FakeOpenAIService | None = None,
+        openai_service: OpenAIService | None = None,
         store: QdrantStore | None = None,
     ) -> None:
-        self.openai_service = openai_service or FakeOpenAIService()
+        self.openai_service = openai_service or OpenAIService()
         self.store = store or QdrantStore(collection_name=settings.qdrant_catalog_collection)
 
     def _build_text(self, item: CatalogUpsertItem) -> str:

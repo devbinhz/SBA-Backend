@@ -3,17 +3,17 @@ from __future__ import annotations
 from typing import Any
 from src.config import settings
 from src.schemas import QueryResponse, SearchHit, Source
-from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
+from src.services import OpenAIService, MongoBookStore, QdrantStore
 
 
 class RagEngine:
     def __init__(
         self,
-        openai_service: FakeOpenAIService | None = None,
+        openai_service: OpenAIService | None = None,
         manifest: MongoBookStore | None = None,
         store: QdrantStore | None = None,
     ) -> None:
-        self.openai_service = openai_service or FakeOpenAIService()
+        self.openai_service = openai_service or OpenAIService()
         self.manifest = manifest or MongoBookStore()
         self.store = store or QdrantStore()
 

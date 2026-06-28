@@ -23,7 +23,7 @@ from src.schemas import (
     CatalogRecommendRequest,
     CatalogRecommendResponse,
 )
-from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
+from src.services import OpenAIService, MongoBookStore, QdrantStore
 from src.storage import MinioBookStorage
 
 
@@ -35,12 +35,12 @@ def get_store() -> QdrantStore:
     return QdrantStore()
 
 
-def get_openai_service() -> FakeOpenAIService:
-    return FakeOpenAIService()
+def get_openai_service() -> OpenAIService:
+    return OpenAIService()
 
 
 def get_rag_engine(
-    openai_service: FakeOpenAIService = Depends(get_openai_service),
+    openai_service: OpenAIService = Depends(get_openai_service),
     manifest: MongoBookStore = Depends(get_manifest),
     store: QdrantStore = Depends(get_store),
 ) -> RagEngine:
@@ -48,7 +48,7 @@ def get_rag_engine(
 
 
 def get_catalog_engine(
-    openai_service: FakeOpenAIService = Depends(get_openai_service),
+    openai_service: OpenAIService = Depends(get_openai_service),
     store: QdrantStore = Depends(get_store),
 ) -> CatalogEngine:
     catalog_store = QdrantStore(client=store.client, collection_name=settings.qdrant_catalog_collection)
@@ -60,7 +60,7 @@ def get_storage() -> MinioBookStorage:
 
 
 def get_ingestion_pipeline(
-    openai_service: FakeOpenAIService = Depends(get_openai_service),
+    openai_service: OpenAIService = Depends(get_openai_service),
     manifest: MongoBookStore = Depends(get_manifest),
     store: QdrantStore = Depends(get_store),
     storage: MinioBookStorage = Depends(get_storage),

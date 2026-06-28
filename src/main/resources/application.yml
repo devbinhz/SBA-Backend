@@ -24,6 +24,7 @@ spring:
         - classpath:db/seed/01_users.sql
         - classpath:db/seed/02_books.sql
         - classpath:db/seed/03_orders.sql
+        - classpath:db/seed/04_reviews.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}

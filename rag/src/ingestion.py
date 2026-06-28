@@ -114,10 +114,10 @@ class IngestionPipeline:
         store: object | None = None,
         storage: object | None = None,
     ) -> None:
-        from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
+        from src.services import OpenAIService, MongoBookStore, QdrantStore
         from src.storage import MinioBookStorage
 
-        self.openai_service = openai_service or FakeOpenAIService()
+        self.openai_service = openai_service or OpenAIService()
         self.manifest = manifest or MongoBookStore()
         self.store = store or QdrantStore()
         self.storage = storage or MinioBookStorage()

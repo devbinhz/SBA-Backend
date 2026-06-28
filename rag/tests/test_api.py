@@ -5,7 +5,7 @@ from src.schemas import IndexedDocument, IngestResponse, SearchHit
 
 
 class FakePipeline:
-    def ingest(self, items=None):
+    def ingest(self, items=None, chunk_size=None, overlap_size=None):
         return IngestResponse(
             indexed=[
                 IndexedDocument(
