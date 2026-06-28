@@ -99,7 +99,11 @@ def create_app() -> FastAPI:
         request: IngestRequest,
         pipeline: IngestionPipeline = Depends(get_ingestion_pipeline),
     ) -> IngestResponse:
-        return pipeline.ingest(items=request.items)
+        return pipeline.ingest(
+            items=request.items,
+            chunk_size=request.chunk_size,
+            overlap_size=request.overlap_size,
+        )
 
     @app.post("/query", response_model=QueryResponse)
     def query(
@@ -109,6 +113,7 @@ def create_app() -> FastAPI:
         return engine.query(
             query=request.query,
             book_ids=request.book_ids,
+            history=request.history,
             top_k=request.top_k,
         )
 

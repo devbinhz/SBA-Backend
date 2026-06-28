@@ -2,8 +2,14 @@ package com.bookverse.controller;
 
 import com.bookverse.dto.request.ai.AiChatRequest;
 import com.bookverse.dto.request.ai.AiRecommendRequest;
+import com.bookverse.dto.request.ai.CreateChatSessionRequestDTO;
+import com.bookverse.dto.request.ai.SendMessageRequestDTO;
 import com.bookverse.dto.response.ai.AiChatResponse;
 import com.bookverse.dto.response.ai.AiRecommendResponse;
+import com.bookverse.dto.response.ai.ChatSessionResponseDTO;
+import com.bookverse.dto.response.ai.ChatMessageResponseDTO;
+import com.bookverse.dto.response.ai.ChatSessionDetailsResponseDTO;
+import com.bookverse.enums.AiRequestType;
 import com.bookverse.entity.User;
 import com.bookverse.enums.UserRole;
 import com.bookverse.security.JwtService;
@@ -103,6 +109,69 @@ class AiChatControllerTest {
                 .andExpect(jsonPath("$.data.answer").value("Here is a list"));
     }
 
+    @Test
+    void createSession_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
+        CreateChatSessionRequestDTO request = new CreateChatSessionRequestDTO("My Chat", AiRequestType.BOOK_CHAT, List.of(1L));
+        ChatSessionResponseDTO response = new ChatSessionResponseDTO(1L, "My Chat", AiRequestType.BOOK_CHAT, List.of(1L), null, null);
+        when(aiChatService.createSession(any(), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/ai/chat/sessions")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.title").value("My Chat"));
+    }
+
+    @Test
+    void listSessions_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
+        ChatSessionResponseDTO session = new ChatSessionResponseDTO(1L, "My Chat", AiRequestType.BOOK_CHAT, List.of(1L), null, null);
+        when(aiChatService.listSessions(any(), any())).thenReturn(List.of(session));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/ai/chat/sessions")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER)))
+                        .param("type", "BOOK_CHAT"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].title").value("My Chat"));
+    }
+
+    @Test
+    void getSessionDetails_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
+        ChatSessionDetailsResponseDTO response = new ChatSessionDetailsResponseDTO(1L, "My Chat", AiRequestType.BOOK_CHAT, List.of(1L), Collections.emptyList(), null, null);
+        when(aiChatService.getSessionDetails(any(), any())).thenReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/ai/chat/sessions/1")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.title").value("My Chat"));
+    }
+
+    @Test
+    void deleteSession_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/ai/chat/sessions/1")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void sendMessage_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
+        SendMessageRequestDTO request = new SendMessageRequestDTO("Hello");
+        ChatMessageResponseDTO response = new ChatMessageResponseDTO(1L, "assistant", "Hi", Collections.emptyList(), null);
+        when(aiChatService.sendMessage(any(), any(), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/ai/chat/sessions/1/messages")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.content").value("Hi"));
+    }
+
     private SecurityUser securityUser(Long id, UserRole role) {
         return new SecurityUser(User.builder()
                 .id(id)
@@ -115,3 +184,4 @@ class AiChatControllerTest {
                 .build());
     }
 }
+

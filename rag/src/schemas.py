@@ -31,6 +31,8 @@ class IngestItem(BaseModel):
 
 class IngestRequest(BaseModel):
     items: list[IngestItem]
+    chunk_size: int | None = None
+    overlap_size: int | None = None
 
 
 class IndexedDocument(BaseModel):
@@ -50,9 +52,15 @@ class IngestResponse(BaseModel):
     total_chunks: int = 0
 
 
+class QueryHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1)
     book_ids: list[int] | None = None
+    history: list[QueryHistoryMessage] | None = None
     top_k: int | None = Field(default=None, ge=1)
 
 

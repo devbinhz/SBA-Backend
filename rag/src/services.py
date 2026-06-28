@@ -40,6 +40,50 @@ def _call_openai_api(url: str, api_key: str, payload: dict) -> dict:
         raise RuntimeError(f"OpenAI call failed: {str(e)}")
 
 
+def get_book_catalog_string(book_id: int) -> str:
+    try:
+        client = QdrantClient(
+            url=settings.qdrant_url,
+            timeout=settings.qdrant_timeout_seconds,
+        )
+        points = client.retrieve(
+            collection_name=settings.qdrant_catalog_collection,
+            ids=[book_id],
+        )
+        if points:
+            payload = points[0].payload
+            parts = []
+            if payload.get("title"):
+                parts.append(f"Title: {payload.get('title')}")
+            if payload.get("author"):
+                parts.append(f"Author: {payload.get('author')}")
+            if payload.get("category"):
+                parts.append(f"Category: {payload.get('category')}")
+            if payload.get("publisher"):
+                parts.append(f"Publisher: {payload.get('publisher')}")
+            if payload.get("publication_year") is not None:
+                parts.append(f"Year: {payload.get('publication_year')}")
+            if payload.get("language"):
+                parts.append(f"Language: {payload.get('language')}")
+            if payload.get("pages") is not None:
+                parts.append(f"Pages: {payload.get('pages')}")
+            if payload.get("description"):
+                parts.append(f"Description: {payload.get('description')}")
+            return " | ".join(parts)
+    except Exception:
+        pass
+
+    try:
+        manifest = MongoBookStore()
+        b = manifest.get_book(book_id)
+        if b and b.get("document_name"):
+            return f"Title: {b.get('document_name')}"
+    except Exception:
+        pass
+
+    return f"Book ID: {book_id}"
+
+
 class FakeOpenAIService:
     def __init__(
         self,
@@ -54,17 +98,19 @@ class FakeOpenAIService:
 
     def embed_texts(self, texts: list[str], dimensions: int | None = None) -> list[list[float]]:
         if self.api_key:
-            payload = {
-                "input": texts,
-                "model": "text-embedding-3-small"
-            }
-            if dimensions:
-                payload["dimensions"] = dimensions
-            try:
+            embeddings = []
+            batch_size = 16
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                payload = {
+                    "input": batch,
+                    "model": "text-embedding-3-small"
+                }
+                if dimensions:
+                    payload["dimensions"] = dimensions
                 response = _call_openai_api("https://api.openai.com/v1/embeddings", self.api_key, payload)
-                return [data["embedding"] for data in response["data"]]
-            except Exception:
-                pass
+                embeddings.extend([data["embedding"] for data in response["data"]])
+            return embeddings
         size = dimensions or self.dimensions
         return [_fake_embedding(text, size) for text in texts]
 
@@ -99,10 +145,13 @@ class FakeOpenAIService:
             },
         }
 
-    def make_answer(self, query: str, sources: list[Source]) -> tuple[str, Usage]:
-        if not sources:
-            return "I could not find relevant indexed book context for that question.", Usage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
-
+    def make_answer(
+        self,
+        query: str,
+        sources: list[Source],
+        history: list[Any] | None = None,
+        book_ids: list[int] | None = None,
+    ) -> tuple[str, list[Source], Usage]:
         if self.api_key:
             context_parts = []
             for index, source in enumerate(sources, start=1):
@@ -110,31 +159,60 @@ class FakeOpenAIService:
                 context_parts.append(
                     f"Source [{index}]: File: {source.file_name} ({location})\nContent: {source.text}"
                 )
-            context_str = "\n\n".join(context_parts)
+            context_str = "\n\n".join(context_parts) if context_parts else "No direct matching book context chunks found."
+
+            selected_books_info = []
+            if book_ids:
+                manifest = MongoBookStore()
+                for bid in book_ids:
+                    status = "not_found"
+                    b = manifest.get_book(bid)
+                    if b:
+                        status = b.get("status") or "not_found"
+                    catalog_str = get_book_catalog_string(bid)
+                    selected_books_info.append(f"- Book ID {bid} [Ingestion Status: {status}]: {catalog_str}")
+            selected_books_str = "\n".join(selected_books_info) if selected_books_info else "None"
 
             system_prompt = (
-                "You are a helpful book assistant. Answer the user's question based strictly on the provided book source chunks.\n"
-                "Provide the sources used (e.g. [1], [2]) in your response where appropriate.\n\n"
-                f"Provided book context:\n{context_str}"
+                "You are a helpful book assistant.\n"
+                f"The user is currently reading the following book(s):\n{selected_books_str}\n\n"
+                "Use the book metadata above (title, author, description, category, etc.) to answer general questions about the book.\n"
+                "If detailed content chunks are provided below, prioritize them and cite sources used (e.g. [1], [2]).\n"
+                "For books whose Ingestion Status is NOT 'indexed', you may only use the metadata above — do not guess or fabricate content.\n"
+                f"Book content chunks:\n{context_str}"
             )
+            openai_messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                for h in history:
+                    role_val = h.get("role") if isinstance(h, dict) else getattr(h, "role", "user")
+                    content_val = h.get("content") if isinstance(h, dict) else getattr(h, "content", "")
+                    openai_messages.append({"role": role_val, "content": content_val})
+            openai_messages.append({"role": "user", "content": query})
+
             payload = {
                 "model": self.chat_model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query}
-                ],
+                "messages": openai_messages,
                 "temperature": 0.3
             }
             try:
                 response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
                 answer = response["choices"][0]["message"]["content"]
+                
+                cited_sources = []
+                for index, source in enumerate(sources, start=1):
+                    if f"[{index}]" in answer:
+                        cited_sources.append(source)
+                
                 usage_data = response.get("usage", {})
                 prompt_tokens = usage_data.get("prompt_tokens", 0)
                 completion_tokens = usage_data.get("completion_tokens", 0)
                 total_tokens = usage_data.get("total_tokens", 0)
-                return answer, Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
-            except Exception:
-                pass
+                return answer, cited_sources, Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
+            except Exception as e:
+                raise RuntimeError(f"OpenAI API call failed: {str(e)}")
+
+        if not sources:
+            return "Tôi không tìm thấy nội dung liên quan trong các cuốn sách đã chọn.", [], Usage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
 
     def recommend_books(self, query: str, books: list[dict], history: list[dict] | None = None) -> tuple[str, list[int]]:
         if not books:
@@ -233,6 +311,7 @@ class FakeOpenAIService:
         completion_tokens = estimate_tokens(answer)
         return (
             answer,
+            sources,
             Usage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,

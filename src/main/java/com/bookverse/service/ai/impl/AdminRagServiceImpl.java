@@ -34,13 +34,19 @@ public class AdminRagServiceImpl implements AdminRagService {
     @Override
     @Transactional
     public RagIngestResponse ingestBookContent(Long bookId) {
+        return ingestBookContent(bookId, null, null);
+    }
+
+    @Override
+    @Transactional
+    public RagIngestResponse ingestBookContent(Long bookId, Integer chunkSize, Integer overlapSize) {
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
         if (book.getFileKey() == null || book.getFileKey().isBlank()) {
             throw new BadRequestException("Book file has not been uploaded yet");
         }
         RagIngestItem item = new RagIngestItem(book.getId(), book.getFileKey(), book.getTitle());
-        RagIngestRequest request = new RagIngestRequest(List.of(item));
+        RagIngestRequest request = new RagIngestRequest(List.of(item), chunkSize, overlapSize);
         RagIngestResponse response = ragClient.ingest(request);
         if (response.errors() == null || response.errors().isEmpty()) {
             book.setLastIndexedAt(LocalDateTime.now());
@@ -52,6 +58,12 @@ public class AdminRagServiceImpl implements AdminRagService {
     @Override
     @Transactional
     public RagIngestResponse ingestBooksContent(List<Long> ids) {
+        return ingestBooksContent(ids, null, null);
+    }
+
+    @Override
+    @Transactional
+    public RagIngestResponse ingestBooksContent(List<Long> ids, Integer chunkSize, Integer overlapSize) {
         List<RagIngestItem> items = new ArrayList<>();
         List<Book> booksToUpdate = new ArrayList<>();
         for (Long id : ids) {
@@ -63,7 +75,7 @@ public class AdminRagServiceImpl implements AdminRagService {
             items.add(new RagIngestItem(book.getId(), book.getFileKey(), book.getTitle()));
             booksToUpdate.add(book);
         }
-        RagIngestRequest request = new RagIngestRequest(items);
+        RagIngestRequest request = new RagIngestRequest(items, chunkSize, overlapSize);
         RagIngestResponse response = ragClient.ingest(request);
         if (response.errors() == null || response.errors().isEmpty()) {
             LocalDateTime now = LocalDateTime.now();

@@ -49,6 +49,12 @@ class CatalogEngine:
                         "book_id": item.book_id,
                         "title": item.title,
                         "author": item.author,
+                        "category": item.category,
+                        "publisher": item.publisher,
+                        "publication_year": item.publication_year,
+                        "language": item.language,
+                        "pages": item.pages,
+                        "description": item.description,
                     },
                 )
             )

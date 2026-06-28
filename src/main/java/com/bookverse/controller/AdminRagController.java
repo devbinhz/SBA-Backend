@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -36,14 +37,20 @@ public class AdminRagController {
 
     @PostMapping("/ingest/{bookId}")
     @Operation(summary = "Ingest a single book's content into RAG")
-    public ApiResponse<RagIngestResponse> ingestBook(@PathVariable Long bookId) {
-        return ApiResponse.success(adminRagService.ingestBookContent(bookId));
+    public ApiResponse<RagIngestResponse> ingestBook(
+            @PathVariable Long bookId,
+            @RequestParam(required = false) Integer chunkSize,
+            @RequestParam(required = false) Integer overlapSize) {
+        return ApiResponse.success(adminRagService.ingestBookContent(bookId, chunkSize, overlapSize));
     }
 
     @PostMapping("/ingest/bulk")
     @Operation(summary = "Ingest multiple books' content into RAG in bulk")
-    public ApiResponse<RagIngestResponse> ingestBooksInBulk(@RequestBody List<Long> bookIds) {
-        return ApiResponse.success(adminRagService.ingestBooksContent(bookIds));
+    public ApiResponse<RagIngestResponse> ingestBooksInBulk(
+            @RequestBody List<Long> bookIds,
+            @RequestParam(required = false) Integer chunkSize,
+            @RequestParam(required = false) Integer overlapSize) {
+        return ApiResponse.success(adminRagService.ingestBooksContent(bookIds, chunkSize, overlapSize));
     }
 
     @DeleteMapping("/index/{bookId}")
