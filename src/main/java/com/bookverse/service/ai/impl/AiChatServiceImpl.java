@@ -167,11 +167,7 @@ public class AiChatServiceImpl implements AiChatService {
             for (Book book : sortedBooks) {
                 sb.append("- **").append(book.getTitle()).append("** của tác giả ").append(book.getAuthor());
                 if (book.getDescription() != null && !book.getDescription().isEmpty()) {
-                    String desc = book.getDescription();
-                    if (desc.length() > 150) {
-                        desc = desc.substring(0, 147) + "...";
-                    }
-                    sb.append(": ").append(desc);
+                    sb.append(": ").append(book.getDescription());
                 }
                 sb.append("\n");
             }

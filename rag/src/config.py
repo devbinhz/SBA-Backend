@@ -30,7 +30,7 @@ class Settings:
     fake_embedding_model: str = os.getenv(
         "FAKE_EMBEDDING_MODEL", "text-embedding-3-small"
     )
-    fake_chat_model: str = os.getenv("FAKE_CHAT_MODEL", "gpt-4o-mini")
+    fake_chat_model: str = os.getenv("FAKE_CHAT_MODEL", "gpt-4o")
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
     chunk_target_tokens: int = int(os.getenv("CHUNK_TARGET_TOKENS", "300"))
     chunk_overlap_tokens: int = int(os.getenv("CHUNK_OVERLAP_TOKENS", "100"))
