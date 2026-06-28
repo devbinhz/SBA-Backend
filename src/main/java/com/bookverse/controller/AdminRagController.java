@@ -5,6 +5,7 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagHealthResponse;
 import com.bookverse.integration.rag.dto.RagIndexStatusResponse;
 import com.bookverse.integration.rag.dto.RagIngestResponse;
+import com.bookverse.integration.rag.dto.RagCatalogStatusResponse;
 import com.bookverse.service.ai.AdminRagService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,6 +57,12 @@ public class AdminRagController {
     @Operation(summary = "Get RAG indexing status of a book")
     public ApiResponse<RagIndexStatusResponse> getBookIndexStatus(@PathVariable Long bookId) {
         return ApiResponse.success(adminRagService.getIndexStatus(bookId));
+    }
+
+    @GetMapping("/catalog/{bookId}/status")
+    @Operation(summary = "Get RAG catalog sync status of a book")
+    public ApiResponse<RagCatalogStatusResponse> getBookCatalogStatus(@PathVariable Long bookId) {
+        return ApiResponse.success(adminRagService.getCatalogStatus(bookId));
     }
 
     @PostMapping("/catalog/upsert/{bookId}")

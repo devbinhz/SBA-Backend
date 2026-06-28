@@ -19,6 +19,9 @@ from src.schemas import (
     CatalogSearchResponse,
     DeleteIndexResponse,
     IndexStatusResponse,
+    CatalogStatusResponse,
+    CatalogRecommendRequest,
+    CatalogRecommendResponse,
 )
 from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
 from src.storage import MinioBookStorage
@@ -146,6 +149,39 @@ def create_app() -> FastAPI:
     ) -> IndexStatusResponse:
         status_data = engine.get_index_status(book_id=book_id)
         return IndexStatusResponse(**status_data)
+
+    @app.get("/catalog/{book_id}/status", response_model=CatalogStatusResponse)
+    def catalog_status(
+        book_id: int,
+        engine: CatalogEngine = Depends(get_catalog_engine),
+    ) -> CatalogStatusResponse:
+        exists = False
+        try:
+            points = engine.store.client.retrieve(
+                collection_name=engine.store.collection_name,
+                ids=[book_id],
+            )
+            exists = len(points) > 0
+        except Exception:
+            pass
+        return CatalogStatusResponse(
+            book_id=book_id,
+            status="indexed" if exists else "not_found"
+        )
+
+    @app.post("/catalog/recommend", response_model=CatalogRecommendResponse)
+    def catalog_recommend(
+        request: CatalogRecommendRequest,
+        openai_service: FakeOpenAIService = Depends(get_openai_service),
+    ) -> CatalogRecommendResponse:
+        candidate_books = [b.model_dump() for b in request.books]
+        history_list = [h.model_dump() for h in request.history] if request.history else []
+        answer, recommended_ids = openai_service.recommend_books(
+            query=request.query,
+            books=candidate_books,
+            history=history_list
+        )
+        return CatalogRecommendResponse(answer=answer, recommended_ids=recommended_ids)
 
     return app
 

@@ -125,3 +125,38 @@ class IndexStatusResponse(BaseModel):
     updated_at: str | None = None
     error: str | None = None
 
+
+class CatalogStatusResponse(BaseModel):
+    book_id: int
+    status: Literal["indexed", "not_found"]
+
+
+class CatalogRecommendItem(BaseModel):
+    id: int
+    title: str
+    author: str
+    description: str | None = None
+    price: float | None = None
+    publisher: str | None = None
+    publication_year: int | None = None
+    language: str | None = None
+    pages: int | None = None
+    stock: int | None = None
+    category: str | None = None
+
+
+class CatalogRecommendHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
+class CatalogRecommendRequest(BaseModel):
+    query: str
+    books: list[CatalogRecommendItem]
+    history: list[CatalogRecommendHistoryMessage] | None = None
+
+
+class CatalogRecommendResponse(BaseModel):
+    answer: str
+    recommended_ids: list[int]
+

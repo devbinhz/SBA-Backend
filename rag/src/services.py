@@ -118,7 +118,7 @@ class FakeOpenAIService:
                 f"Provided book context:\n{context_str}"
             )
             payload = {
-                "model": "gpt-4o-mini",
+                "model": self.chat_model,
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
@@ -135,6 +135,85 @@ class FakeOpenAIService:
                 return answer, Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
             except Exception:
                 pass
+
+    def recommend_books(self, query: str, books: list[dict], history: list[dict] | None = None) -> tuple[str, list[int]]:
+        if not books:
+            return "Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.", []
+
+        if self.api_key:
+            books_list_str = ""
+            for b in books:
+                desc = b.get("description") or "Không có mô tả."
+                price_val = f"{b['price']} VND" if b.get("price") is not None else "Không có thông tin giá."
+                pub = b.get("publisher") or "Không rõ NXB"
+                year = b.get("publication_year") or "Không rõ năm"
+                lang = b.get("language") or "Không rõ"
+                pgs = b.get("pages") or "Không rõ"
+                stk = b.get("stock") if b.get("stock") is not None else "Không rõ"
+                cat = b.get("category") or "Không rõ"
+                books_list_str += (
+                    f"Book ID [{b['id']}]: Title: {b['title']}, Author: {b['author']}, Category: {cat}, "
+                    f"Price: {price_val}, Publisher: {pub}, Year: {year}, Language: {lang}, Pages: {pgs}, "
+                    f"Stock: {stk}, Description: {desc}\n\n"
+                )
+
+            system_prompt = (
+                "You are an enthusiastic, friendly, and helpful book salesperson at BookVerse. Given the user's query and a list of candidate books with detailed metadata (title, author, category, price, publisher, year, language, pages, stock, description), "
+                "you must decide which books are relevant to the query and recommend them. "
+                "You MUST speak in Vietnamese in a warm, welcoming, polite, and persuasive salesperson tone (using polite particles like 'dạ', 'ạ', referring to yourself as 'em/cửa hàng em' and the user as 'anh/chị/bạn'). "
+                "You must respect all filters requested by the user, including price filters, author filters, publisher filters, category filters, publication year filters, and stock availability. "
+                "Do NOT recommend books that do not match the user's criteria. "
+                "When summarizing available categories, topics, authors, or publishers in the store, you MUST ONLY mention those that are explicitly present in the provided Candidate Books list. "
+                "Do NOT hallucinate or invent categories, publishers, or books that do not exist in the candidate list. If there are fewer than 10 categories available in the list, only mention the ones that actually exist, rather than making up options to fill a list. "
+                "If none of the books are relevant or meet the criteria, explain politely and warmly as a salesperson that the shop doesn't currently carry matching titles, and do not list any recommended IDs. "
+                "You MUST return the output in JSON format with exactly two keys:\n"
+                "1. 'answer': An engaging, welcoming, and helpful recommendation response in Vietnamese written in a salesperson style.\n"
+                "2. 'recommended_ids': A JSON array of integers representing the IDs of the relevant books.\n\n"
+                f"Candidate Books:\n{books_list_str}"
+            )
+            openai_messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                for h in history:
+                    openai_messages.append({
+                        "role": h.get("role", "user"),
+                        "content": h.get("content", "")
+                    })
+            openai_messages.append({"role": "user", "content": f"User query: {query}"})
+
+            payload = {
+                "model": self.chat_model,
+                "messages": openai_messages,
+                "temperature": 0.3,
+                "response_format": {"type": "json_object"}
+            }
+            try:
+                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                content = json.loads(response["choices"][0]["message"]["content"])
+                return content.get("answer", ""), content.get("recommended_ids", [])
+            except Exception:
+                pass
+
+        recommended_ids = []
+        words = query.lower().split()
+        for b in books:
+            title_lower = b['title'].lower()
+            desc_lower = (b.get('description') or '').lower()
+            matched = False
+            for word in words:
+                if len(word) > 2 and (word in title_lower or word in desc_lower):
+                    matched = True
+                    break
+            if matched:
+                recommended_ids.append(b['id'])
+
+        if not recommended_ids:
+            return "Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.", []
+
+        answer = "Dựa trên nhu cầu của bạn, tôi xin gợi ý các cuốn sách sau:\n\n"
+        for b in books:
+            if b['id'] in recommended_ids:
+                answer += f"- **{b['title']}** của tác giả {b['author']}\n"
+        return answer.strip(), recommended_ids
 
         prompt_tokens = estimate_tokens(query) + sum(
             estimate_tokens(source.text) for source in sources

@@ -14,6 +14,11 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagQueryRequest;
 import com.bookverse.integration.rag.dto.RagQueryResponse;
 import com.bookverse.integration.rag.dto.RagSource;
+import com.bookverse.integration.rag.dto.RagCatalogRecommendRequest;
+import com.bookverse.integration.rag.dto.RagCatalogRecommendItem;
+import com.bookverse.integration.rag.dto.RagCatalogRecommendResponse;
+import com.bookverse.integration.rag.dto.RagChatHistoryMessage;
+import com.bookverse.dto.request.ai.ChatHistoryMessage;
 import com.bookverse.mapper.BookMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.service.ai.AiChatService;
@@ -159,22 +164,64 @@ public class AiChatServiceImpl implements AiChatService {
         List<Book> sortedBooks = new ArrayList<>(activeBooks);
         sortedBooks.sort(Comparator.comparingInt(b -> finalBookIds.indexOf(b.getId())));
 
-        StringBuilder sb = new StringBuilder();
-        if (sortedBooks.isEmpty()) {
-            sb.append("Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.");
-        } else {
-            sb.append("Dựa trên nhu cầu của bạn, tôi xin gợi ý các cuốn sách sau:\n\n");
-            for (Book book : sortedBooks) {
-                sb.append("- **").append(book.getTitle()).append("** của tác giả ").append(book.getAuthor());
-                if (book.getDescription() != null && !book.getDescription().isEmpty()) {
-                    sb.append(": ").append(book.getDescription());
-                }
-                sb.append("\n");
+        List<RagCatalogRecommendItem> recommendItems = sortedBooks.stream()
+                .map(b -> new RagCatalogRecommendItem(
+                        b.getId(),
+                        b.getTitle(),
+                        b.getAuthor(),
+                        b.getDescription(),
+                        b.getPrice(),
+                        b.getPublisher(),
+                        b.getPublicationYear(),
+                        b.getLanguage(),
+                        b.getPages(),
+                        b.getStock(),
+                        b.getCategory() != null ? b.getCategory().getName() : null
+                ))
+                .toList();
+
+        List<RagChatHistoryMessage> ragHistory = new ArrayList<>();
+        if (request.history() != null) {
+            for (ChatHistoryMessage msg : request.history()) {
+                ragHistory.add(new RagChatHistoryMessage(msg.role(), msg.content()));
             }
         }
-        String answer = sb.toString().trim();
 
+        String answer = "";
+        List<Long> recommendedIds = new ArrayList<>();
+
+        try {
+            RagCatalogRecommendResponse recommendResp = ragClient.catalogRecommend(
+                    new RagCatalogRecommendRequest(request.query(), recommendItems, ragHistory)
+            );
+            if (recommendResp != null) {
+                answer = recommendResp.answer();
+                recommendedIds = recommendResp.recommendedIds();
+            }
+        } catch (Exception ex) {
+        }
+
+        if (answer == null || answer.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            if (sortedBooks.isEmpty()) {
+                sb.append("Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.");
+            } else {
+                sb.append("Dựa trên nhu cầu của bạn, tôi xin gợi ý các cuốn sách sau:\n\n");
+                for (Book book : sortedBooks) {
+                    sb.append("- **").append(book.getTitle()).append("** của tác giả ").append(book.getAuthor());
+                    if (book.getDescription() != null && !book.getDescription().isEmpty()) {
+                        sb.append(": ").append(book.getDescription());
+                    }
+                    sb.append("\n");
+                }
+            }
+            answer = sb.toString().trim();
+            recommendedIds = sortedBooks.stream().map(Book::getId).toList();
+        }
+
+        List<Long> finalRecommendedIds = recommendedIds;
         List<BookResponseDTO> bookDTOs = sortedBooks.stream()
+                .filter(b -> finalRecommendedIds.contains(b.getId()))
                 .map(bookMapper::toResponse)
                 .toList();
 

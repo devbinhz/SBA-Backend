@@ -12,6 +12,7 @@ import com.bookverse.integration.rag.dto.RagIngestResponse;
 import com.bookverse.integration.rag.dto.RagIndexStatusResponse;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.service.ai.AdminRagService;
+import com.bookverse.integration.rag.dto.RagCatalogStatusResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -106,5 +107,11 @@ public class AdminRagServiceImpl implements AdminRagService {
     @Transactional(readOnly = true)
     public RagIndexStatusResponse getIndexStatus(Long bookId) {
         return ragClient.getIndexStatus(bookId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public RagCatalogStatusResponse getCatalogStatus(Long bookId) {
+        return ragClient.getCatalogStatus(bookId);
     }
 }

@@ -11,4 +11,6 @@ public interface RagClient {
     RagCatalogUpsertResponse catalogUpsert(RagCatalogUpsertRequest request);
     RagCatalogSearchResponse catalogSearch(RagCatalogSearchRequest request);
     void deleteCatalog(Long bookId);
+    RagCatalogStatusResponse getCatalogStatus(Long bookId);
+    RagCatalogRecommendResponse catalogRecommend(RagCatalogRecommendRequest request);
 }

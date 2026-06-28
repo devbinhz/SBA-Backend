@@ -59,27 +59,28 @@ services:
       ME_CONFIG_BASICAUTH: "false"
       ME_CONFIG_BASICAUTH_ENABLED: "false"
 
-  # books-rag:
-  #   build:
-  #     context: ./rag
-  #     dockerfile: Dockerfile
-  #   container_name: bookverse-books-rag
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - ./rag:/app
-  #     - /app/.venv
-  #   environment:
-  #     - MONGO_URL=mongodb://mongo:27017
-  #     - QDRANT_URL=http://qdrant:6333
-  #     - MINIO_ENDPOINT=http://minio:9000
-  #     - MINIO_ACCESS_KEY=minioadmin
-  #     - MINIO_SECRET_KEY=minioadmin
-  #     - MINIO_BOOKS_BUCKET=bookverse-books
-  #   depends_on:
-  #     - mongo
-  #     - qdrant
-  #     - minio
+  books-rag:
+    build:
+      context: ./rag
+      dockerfile: Dockerfile
+    container_name: bookverse-books-rag
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./rag:/app
+      - /app/.venv
+    environment:
+      - MONGO_URL=mongodb://mongo:27017
+      - QDRANT_URL=http://qdrant:6333
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BOOKS_BUCKET=bookverse-books
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - mongo
+      - qdrant
+      - minio
 
   minio:
     image: minio/minio:latest
