@@ -34,8 +34,16 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional(readOnly = true)
     public CartResponseDTO getCartResponse(Long userId) {
-        Cart cart = getOrCreateCart(userId);
-        return cartMapper.toCartResponseDTO(cart);
+        Optional<Cart> cartOpt = cartRepository.findByUserId(userId);
+        if (cartOpt.isPresent()) {
+            return cartMapper.toCartResponseDTO(cartOpt.get());
+        }
+        
+        // Trả về DTO rỗng, không lưu DB
+        return CartResponseDTO.builder()
+                .items(new java.util.ArrayList<>())
+                .subtotal(0L)
+                .build();
     }
 
     @Override

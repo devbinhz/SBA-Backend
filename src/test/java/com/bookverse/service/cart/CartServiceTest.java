@@ -69,16 +69,15 @@ class CartServiceTest {
     }
 
     @Test
-    void getCartResponse_ShouldCreateCart_WhenCartDoesNotExist() {
+    void getCartResponse_ShouldReturnEmpty_WhenCartDoesNotExist() {
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.empty());
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-        when(cartRepository.save(any(Cart.class))).thenReturn(cart);
-        when(cartMapper.toCartResponseDTO(any())).thenReturn(new CartResponseDTO());
 
         CartResponseDTO response = cartService.getCartResponse(1L);
 
         assertNotNull(response);
-        verify(cartRepository).save(any(Cart.class));
+        assertEquals(0L, response.getSubtotal());
+        assertTrue(response.getItems().isEmpty());
+        verify(cartRepository, never()).save(any(Cart.class));
     }
 
     @Test
