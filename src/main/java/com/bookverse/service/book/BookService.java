@@ -19,6 +19,14 @@ public interface BookService {
             Pageable pageable
     );
 
+    PageResponseDTO<BookResponseDTO> searchBooksAdmin(
+            String query,
+            Long categoryId,
+            Boolean active,
+            String sort,
+            Pageable pageable
+    );
+
     BookResponseDTO getBookDetail(Long id);
 
     BookResponseDTO createBook(CreateBookRequestDTO request);

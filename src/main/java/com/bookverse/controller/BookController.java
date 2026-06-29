@@ -54,6 +54,18 @@ public class BookController {
         return ApiResponse.success(bookService.getBookDetail(id));
     }
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Search and list all books (Admin)")
+    public ApiResponse<PageResponseDTO<BookResponseDTO>> searchBooksAdmin(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String sort,
+            Pageable pageable) {
+        return ApiResponse.success(bookService.searchBooksAdmin(query, categoryId, active, sort, pageable));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)

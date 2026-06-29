@@ -151,6 +151,63 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional(readOnly = true)
+    public PageResponseDTO<BookResponseDTO> searchBooksAdmin(
+            String query,
+            Long categoryId,
+            Boolean active,
+            String sortParam,
+            Pageable pageable) {
+
+        Specification<Book> spec = (root, cq, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (active != null) {
+                predicates.add(cb.equal(root.get("active"), active));
+            }
+
+            if (query != null && !query.trim().isEmpty()) {
+                String likePattern = "%" + query.trim().toLowerCase() + "%";
+                Predicate titleLike = cb.like(cb.lower(root.get("title")), likePattern);
+                Predicate authorLike = cb.like(cb.lower(root.get("author")), likePattern);
+                Predicate isbnLike = cb.like(cb.lower(root.get("isbn")), likePattern);
+                predicates.add(cb.or(titleLike, authorLike, isbnLike));
+            }
+
+            if (categoryId != null) {
+                predicates.add(cb.equal(root.get("category").get("id"), categoryId));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Sort sort = Sort.unsorted();
+        if ("newest".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.DESC, "createdAt");
+        } else if ("price_asc".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.ASC, "price");
+        } else if ("price_desc".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.DESC, "price");
+        } else if ("rating_desc".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.DESC, "ratingAvg");
+        } else if ("sold_desc".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.DESC, "soldCount");
+        }
+
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort.isSorted() ? sort : pageable.getSort());
+        
+        Page<Book> bookPage = bookRepository.findAll(spec, sortedPageable);
+        
+        return new PageResponseDTO<>(
+                bookPage.getContent().stream().map(bookMapper::toResponse).toList(),
+                bookPage.getNumber(),
+                bookPage.getSize(),
+                bookPage.getTotalElements(),
+                bookPage.getTotalPages()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public BookResponseDTO getBookDetail(Long id) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
