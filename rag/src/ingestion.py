@@ -114,15 +114,20 @@ class IngestionPipeline:
         store: object | None = None,
         storage: object | None = None,
     ) -> None:
-        from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
+        from src.services import OpenAIService, MongoBookStore, QdrantStore
         from src.storage import MinioBookStorage
 
-        self.openai_service = openai_service or FakeOpenAIService()
+        self.openai_service = openai_service or OpenAIService()
         self.manifest = manifest or MongoBookStore()
         self.store = store or QdrantStore()
         self.storage = storage or MinioBookStorage()
 
-    def ingest(self, items: list[IngestItem]) -> IngestResponse:
+    def ingest(
+        self,
+        items: list[IngestItem],
+        chunk_size: int | None = None,
+        overlap_size: int | None = None,
+    ) -> IngestResponse:
         response = IngestResponse()
         if not items:
             return response
@@ -160,7 +165,12 @@ class IngestionPipeline:
 
                 self.store.delete_points(old_chunk_ids)
 
-                chunks = chunk_document(parsed, book_id)
+                chunks = chunk_document(
+                    parsed,
+                    book_id,
+                    chunk_size=chunk_size,
+                    overlap_size=overlap_size,
+                )
                 vectors = self.openai_service.embed_texts([chunk.text for chunk in chunks])
                 self.store.upsert_chunks(chunks, vectors)
                 self.manifest.mark_indexed(book_id=book_id, path=path, parsed=parsed, chunks=chunks)
@@ -311,7 +321,15 @@ def extract_epub_images(path: Path) -> list[ExtractedImage]:
     return images
 
 
-def chunk_document(document: ParsedDocument, book_id: int) -> list[TextChunk]:
+def chunk_document(
+    document: ParsedDocument,
+    book_id: int,
+    chunk_size: int | None = None,
+    overlap_size: int | None = None,
+) -> list[TextChunk]:
+    target_tokens = chunk_size if chunk_size is not None else settings.chunk_target_tokens
+    overlap_tokens = overlap_size if overlap_size is not None else settings.chunk_overlap_tokens
+
     token_stream: list[tuple[str, int | None]] = []
     for page in document.pages:
         token_stream.extend(
@@ -322,11 +340,11 @@ def chunk_document(document: ParsedDocument, book_id: int) -> list[TextChunk]:
         return []
 
     chunks: list[TextChunk] = []
-    step = max(1, settings.chunk_target_tokens - settings.chunk_overlap_tokens)
+    step = max(1, target_tokens - overlap_tokens)
     start = 0
 
     while start < len(token_stream):
-        end = min(start + settings.chunk_target_tokens, len(token_stream))
+        end = min(start + target_tokens, len(token_stream))
         window = token_stream[start:end]
         text = " ".join(token for token, _page in window).strip()
         page = _dominant_page(window)

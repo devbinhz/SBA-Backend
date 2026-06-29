@@ -83,6 +83,13 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<ReviewResponseDTO> getAllReviews(Pageable pageable) {
+        return reviewRepository.findAll(pageable)
+                .map(reviewMapper::toResponse);
+    }
+
+    @Override
     @Transactional
     public void deleteReview(Long reviewId, SecurityUser securityUser) {
         Review review = reviewRepository.findById(reviewId)

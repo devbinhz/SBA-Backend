@@ -102,7 +102,7 @@ public class PaymentServiceImpl implements PaymentService {
             return PaymentWebhookResponseDTO.builder()
                     .processed(duplicate.isProcessed())
                     .duplicate(true)
-                    .status("DUPLICATE")
+                    .status(payment != null ? payment.getStatus().name() : "DUPLICATE")
                     .build();
         }
 

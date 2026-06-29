@@ -3,17 +3,17 @@ from __future__ import annotations
 from typing import Any
 from src.config import settings
 from src.schemas import QueryResponse, SearchHit, Source
-from src.services import FakeOpenAIService, MongoBookStore, QdrantStore
+from src.services import OpenAIService, MongoBookStore, QdrantStore
 
 
 class RagEngine:
     def __init__(
         self,
-        openai_service: FakeOpenAIService | None = None,
+        openai_service: OpenAIService | None = None,
         manifest: MongoBookStore | None = None,
         store: QdrantStore | None = None,
     ) -> None:
-        self.openai_service = openai_service or FakeOpenAIService()
+        self.openai_service = openai_service or OpenAIService()
         self.manifest = manifest or MongoBookStore()
         self.store = store or QdrantStore()
 
@@ -21,14 +21,16 @@ class RagEngine:
         self,
         query: str,
         book_ids: list[int] | None = None,
+        history: list[Any] | None = None,
         top_k: int | None = None,
     ) -> QueryResponse:
         limit = min(top_k or settings.default_top_k, settings.max_top_k)
         vector = self.openai_service.embed_texts([query])[0]
         hits = self.store.search(vector=vector, limit=limit, book_ids=book_ids)
-        sources = [_source_from_hit(hit) for hit in hits]
-        answer, usage = self.openai_service.make_answer(query, sources)
-        return QueryResponse(answer=answer, sources=sources, usage=usage)
+        filtered_hits = [hit for hit in hits if hit.score >= 0.24]
+        sources = [_source_from_hit(hit) for hit in filtered_hits]
+        answer, cited_sources, usage = self.openai_service.make_answer(query, sources, history, book_ids=book_ids)
+        return QueryResponse(answer=answer, sources=cited_sources, usage=usage)
 
     def delete(self, book_id: int) -> int:
         chunk_ids = self.manifest.chunk_ids_for_book(book_id)

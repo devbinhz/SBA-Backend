@@ -3,11 +3,18 @@ package com.bookverse.service.ai;
 import com.bookverse.common.exception.BookInactiveException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.ai.AiChatRequest;
+import com.bookverse.dto.request.ai.AiRecommendRequest;
 import com.bookverse.dto.response.ai.AiChatResponse;
+import com.bookverse.dto.response.ai.AiRecommendResponse;
 import com.bookverse.entity.Book;
+import com.bookverse.entity.Category;
+import com.bookverse.enums.AiRequestType;
 import com.bookverse.integration.rag.RagClient;
+import com.bookverse.integration.rag.dto.RagCatalogBookHit;
+import com.bookverse.integration.rag.dto.RagCatalogSearchResponse;
 import com.bookverse.integration.rag.dto.RagQueryResponse;
 import com.bookverse.integration.rag.dto.RagSource;
+import com.bookverse.mapper.BookMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.service.ai.impl.AiChatServiceImpl;
 import com.bookverse.service.book.BookOwnershipService;
@@ -22,6 +29,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AiChatServiceImplTest {
@@ -29,6 +37,8 @@ class AiChatServiceImplTest {
     private BookRepository bookRepository;
     private RagClient ragClient;
     private BookOwnershipService bookOwnershipService;
+    private AiUsageService aiUsageService;
+    private BookMapper bookMapper;
     private AiChatServiceImpl aiChatService;
 
     @BeforeEach
@@ -36,7 +46,9 @@ class AiChatServiceImplTest {
         bookRepository = Mockito.mock(BookRepository.class);
         ragClient = Mockito.mock(RagClient.class);
         bookOwnershipService = Mockito.mock(BookOwnershipService.class);
-        aiChatService = new AiChatServiceImpl(bookRepository, ragClient, bookOwnershipService);
+        aiUsageService = Mockito.mock(AiUsageService.class);
+        bookMapper = Mockito.mock(BookMapper.class);
+        aiChatService = new AiChatServiceImpl(bookRepository, ragClient, bookOwnershipService, aiUsageService, bookMapper);
     }
 
     @Test
@@ -86,7 +98,7 @@ class AiChatServiceImplTest {
         when(bookOwnershipService.hasUserPurchasedBooks(eq(100L), any())).thenReturn(true);
 
         RagSource source = new RagSource(1L, "Clean Code", "clean_code.pdf", "pdf", 0, 10, 0.95, "Use meaningful names.");
-        RagQueryResponse queryResp = new RagQueryResponse("LLM answer", List.of(source), new RagQueryResponse.Usage(0, 0, 0));
+        RagQueryResponse queryResp = new RagQueryResponse("LLM answer", List.of(source), new RagQueryResponse.Usage(10, 20, 30));
         when(ragClient.query(any())).thenReturn(queryResp);
 
         AiChatRequest request = new AiChatRequest("meaningful names", List.of(1L), 5);
@@ -96,5 +108,31 @@ class AiChatServiceImplTest {
         assertEquals(1, chatResp.sources().size());
         assertEquals("Clean Code", chatResp.sources().get(0).bookTitle());
         assertTrue(chatResp.answer().contains("Use meaningful names."));
+
+        verify(aiUsageService).logUsage(eq(100L), eq(AiRequestType.BOOK_CHAT), eq("meaningful names"), any(), eq(10), eq(20), any(Long.class));
+    }
+
+    @Test
+    void recommend_ShouldReturnRecommendations_WhenQueryIsSent() {
+        Category category = Category.builder().id(2L).name("Programming").active(true).build();
+        Book book = Book.builder()
+                .id(1L)
+                .title("Effective Java")
+                .author("Joshua Bloch")
+                .description("Great book")
+                .active(true)
+                .category(category)
+                .build();
+
+        RagCatalogSearchResponse catalogResp = new RagCatalogSearchResponse(List.of(new RagCatalogBookHit(1L, 0.85)));
+        when(ragClient.catalogSearch(any())).thenReturn(catalogResp);
+        when(bookRepository.findAllById(any())).thenReturn(List.of(book));
+
+        AiRecommendRequest request = new AiRecommendRequest("Java", 5);
+        AiRecommendResponse response = aiChatService.recommend(request, 100L);
+
+        assertNotNull(response);
+        assertTrue(response.answer().contains("Effective Java"));
+        verify(aiUsageService).logUsage(eq(100L), eq(AiRequestType.BOOK_RECOMMEND), eq("Java"), any(), any(Integer.class), any(Integer.class), any(Long.class));
     }
 }

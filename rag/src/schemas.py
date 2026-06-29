@@ -31,6 +31,8 @@ class IngestItem(BaseModel):
 
 class IngestRequest(BaseModel):
     items: list[IngestItem]
+    chunk_size: int | None = None
+    overlap_size: int | None = None
 
 
 class IndexedDocument(BaseModel):
@@ -50,9 +52,15 @@ class IngestResponse(BaseModel):
     total_chunks: int = 0
 
 
+class QueryHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1)
     book_ids: list[int] | None = None
+    history: list[QueryHistoryMessage] | None = None
     top_k: int | None = Field(default=None, ge=1)
 
 
@@ -124,4 +132,39 @@ class IndexStatusResponse(BaseModel):
     chunk_count: int | None = None
     updated_at: str | None = None
     error: str | None = None
+
+
+class CatalogStatusResponse(BaseModel):
+    book_id: int
+    status: Literal["indexed", "not_found"]
+
+
+class CatalogRecommendItem(BaseModel):
+    id: int
+    title: str
+    author: str
+    description: str | None = None
+    price: float | None = None
+    publisher: str | None = None
+    publication_year: int | None = None
+    language: str | None = None
+    pages: int | None = None
+    stock: int | None = None
+    category: str | None = None
+
+
+class CatalogRecommendHistoryMessage(BaseModel):
+    role: str
+    content: str
+
+
+class CatalogRecommendRequest(BaseModel):
+    query: str
+    books: list[CatalogRecommendItem]
+    history: list[CatalogRecommendHistoryMessage] | None = None
+
+
+class CatalogRecommendResponse(BaseModel):
+    answer: str
+    recommended_ids: list[int]
 

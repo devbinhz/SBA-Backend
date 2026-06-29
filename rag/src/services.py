@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import time
+import urllib.error
+import urllib.request
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -16,20 +19,103 @@ from src.ingestion import ExtractedImage, ParsedDocument, TextChunk, sanitize_do
 from src.schemas import SearchHit, Source, Usage
 
 
-class FakeOpenAIService:
+def _call_openai_api(url: str, api_key: str, payload: dict) -> dict:
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        raise RuntimeError(f"OpenAI call failed: {e.code} {e.reason} - {error_body}")
+    except Exception as e:
+        raise RuntimeError(f"OpenAI call failed: {str(e)}")
+
+
+def get_book_catalog_string(book_id: int) -> str:
+    try:
+        client = QdrantClient(
+            url=settings.qdrant_url,
+            timeout=settings.qdrant_timeout_seconds,
+        )
+        points = client.retrieve(
+            collection_name=settings.qdrant_catalog_collection,
+            ids=[book_id],
+        )
+        if points:
+            payload = points[0].payload
+            parts = []
+            if payload.get("title"):
+                parts.append(f"Title: {payload.get('title')}")
+            if payload.get("author"):
+                parts.append(f"Author: {payload.get('author')}")
+            if payload.get("category"):
+                parts.append(f"Category: {payload.get('category')}")
+            if payload.get("publisher"):
+                parts.append(f"Publisher: {payload.get('publisher')}")
+            if payload.get("publication_year") is not None:
+                parts.append(f"Year: {payload.get('publication_year')}")
+            if payload.get("language"):
+                parts.append(f"Language: {payload.get('language')}")
+            if payload.get("pages") is not None:
+                parts.append(f"Pages: {payload.get('pages')}")
+            if payload.get("description"):
+                parts.append(f"Description: {payload.get('description')}")
+            return " | ".join(parts)
+    except Exception:
+        pass
+
+    try:
+        manifest = MongoBookStore()
+        b = manifest.get_book(book_id)
+        if b and b.get("document_name"):
+            return f"Title: {b.get('document_name')}"
+    except Exception:
+        pass
+
+    return f"Book ID: {book_id}"
+
+
+class OpenAIService:
     def __init__(
         self,
         embedding_model: str | None = None,
         chat_model: str | None = None,
         dimensions: int | None = None,
     ) -> None:
-        self.embedding_model = embedding_model or settings.fake_embedding_model
-        self.chat_model = chat_model or settings.fake_chat_model
+        self.embedding_model = embedding_model or settings.openai_embedding_model
+        self.chat_model = chat_model or settings.openai_chat_model
         self.dimensions = dimensions or settings.embedding_dimension
+        self.api_key = settings.openai_api_key
 
     def embed_texts(self, texts: list[str], dimensions: int | None = None) -> list[list[float]]:
+        if self.api_key:
+            embeddings = []
+            batch_size = 16
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i + batch_size]
+                payload = {
+                    "input": batch,
+                    "model": "text-embedding-3-small"
+                }
+                if dimensions:
+                    payload["dimensions"] = dimensions
+                response = _call_openai_api("https://api.openai.com/v1/embeddings", self.api_key, payload)
+                embeddings.extend([data["embedding"] for data in response["data"]])
+            return embeddings
         size = dimensions or self.dimensions
         return [_fake_embedding(text, size) for text in texts]
+
+    def embed_text(self, text: str, dimensions: int | None = None) -> list[float]:
+        return self.embed_texts([text], dimensions)[0]
 
     def embeddings_response(
         self,
@@ -59,36 +145,179 @@ class FakeOpenAIService:
             },
         }
 
-    def make_answer(self, query: str, sources: list[Source]) -> tuple[str, Usage]:
+    def make_answer(
+        self,
+        query: str,
+        sources: list[Source],
+        history: list[Any] | None = None,
+        book_ids: list[int] | None = None,
+    ) -> tuple[str, list[Source], Usage]:
+        if self.api_key:
+            context_parts = []
+            for index, source in enumerate(sources, start=1):
+                location = f"page {source.page}" if source.page is not None else "no page"
+                context_parts.append(
+                    f"Source [{index}]: File: {source.file_name} ({location})\nContent: {source.text}"
+                )
+            context_str = "\n\n".join(context_parts) if context_parts else "No direct matching book context chunks found."
+
+            selected_books_info = []
+            if book_ids:
+                manifest = MongoBookStore()
+                for bid in book_ids:
+                    status = "not_found"
+                    b = manifest.get_book(bid)
+                    if b:
+                        status = b.get("status") or "not_found"
+                    catalog_str = get_book_catalog_string(bid)
+                    selected_books_info.append(f"- Book ID {bid} [Ingestion Status: {status}]: {catalog_str}")
+            selected_books_str = "\n".join(selected_books_info) if selected_books_info else "None"
+
+            system_prompt = (
+                "You are a helpful book assistant.\n"
+                f"The user is currently reading the following book(s):\n{selected_books_str}\n\n"
+                "Use the book metadata above (title, author, description, category, etc.) to answer general questions about the book.\n"
+                "If detailed content chunks are provided below, prioritize them and cite sources used (e.g. [1], [2]).\n"
+                "For books whose Ingestion Status is NOT 'indexed', you may only use the metadata above — do not guess or fabricate content.\n"
+                f"Book content chunks:\n{context_str}"
+            )
+            openai_messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                for h in history:
+                    role_val = h.get("role") if isinstance(h, dict) else getattr(h, "role", "user")
+                    content_val = h.get("content") if isinstance(h, dict) else getattr(h, "content", "")
+                    openai_messages.append({"role": role_val, "content": content_val})
+            openai_messages.append({"role": "user", "content": query})
+
+            payload = {
+                "model": self.chat_model,
+                "messages": openai_messages,
+                "temperature": 0.3
+            }
+            try:
+                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                answer = response["choices"][0]["message"]["content"]
+                
+                cited_sources = []
+                for index, source in enumerate(sources, start=1):
+                    if f"[{index}]" in answer:
+                        cited_sources.append(source)
+                
+                usage_data = response.get("usage", {})
+                prompt_tokens = usage_data.get("prompt_tokens", 0)
+                completion_tokens = usage_data.get("completion_tokens", 0)
+                total_tokens = usage_data.get("total_tokens", 0)
+                return answer, cited_sources, Usage(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, total_tokens=total_tokens)
+            except Exception as e:
+                raise RuntimeError(f"OpenAI API call failed: {str(e)}")
+
+        if not sources:
+            return "Tôi không tìm thấy nội dung liên quan trong các cuốn sách đã chọn.", [], Usage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+
         prompt_tokens = estimate_tokens(query) + sum(
             estimate_tokens(source.text) for source in sources
         )
-
-        if not sources:
-            answer = "I could not find relevant indexed book context for that question."
-        else:
-            source_lines = []
-            for index, source in enumerate(sources, start=1):
-                location = f"page {source.page}" if source.page is not None else "no page"
-                source_lines.append(
-                    f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
-                )
-            answer = (
-                "Fake OpenAI chat response based on retrieved book chunks.\n\n"
-                f"Question: {query}\n\n"
-                "Relevant sources:\n"
-                + "\n".join(source_lines)
+        source_lines = []
+        for index, source in enumerate(sources, start=1):
+            location = f"page {source.page}" if source.page is not None else "no page"
+            source_lines.append(
+                f"[{index}] {source.document_name} ({location}): {_preview(source.text)}"
             )
-
+        answer = (
+            "OpenAI chat response based on retrieved book chunks.\n\n"
+            f"Question: {query}\n\n"
+            "Relevant sources:\n"
+            + "\n".join(source_lines)
+        )
         completion_tokens = estimate_tokens(answer)
         return (
             answer,
+            sources,
             Usage(
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=prompt_tokens + completion_tokens,
             ),
         )
+
+    def recommend_books(self, query: str, books: list[dict], history: list[dict] | None = None) -> tuple[str, list[int]]:
+        if not books:
+            return "Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.", []
+
+        if self.api_key:
+            books_list_str = ""
+            for b in books:
+                desc = b.get("description") or "Không có mô tả."
+                price_val = f"{b['price']} VND" if b.get("price") is not None else "Không có thông tin giá."
+                pub = b.get("publisher") or "Không rõ NXB"
+                year = b.get("publication_year") or "Không rõ năm"
+                lang = b.get("language") or "Không rõ"
+                pgs = b.get("pages") or "Không rõ"
+                stk = b.get("stock") if b.get("stock") is not None else "Không rõ"
+                cat = b.get("category") or "Không rõ"
+                books_list_str += (
+                    f"Book ID [{b['id']}]: Title: {b['title']}, Author: {b['author']}, Category: {cat}, "
+                    f"Price: {price_val}, Publisher: {pub}, Year: {year}, Language: {lang}, Pages: {pgs}, "
+                    f"Stock: {stk}, Description: {desc}\n\n"
+                )
+
+            system_prompt = (
+                "You are an enthusiastic, friendly, and helpful book salesperson at BookVerse. Given the user's query and a list of candidate books with detailed metadata (title, author, category, price, publisher, year, language, pages, stock, description), "
+                "you must decide which books are relevant to the query and recommend them. "
+                "You MUST speak in Vietnamese in a warm, welcoming, polite, and persuasive salesperson tone (using polite particles like 'dạ', 'ạ', referring to yourself as 'em/cửa hàng em' and the user as 'anh/chị/bạn'). "
+                "You must respect all filters requested by the user, including price filters, author filters, publisher filters, category filters, publication year filters, and stock availability. "
+                "Do NOT recommend books that do not match the user's criteria. "
+                "When summarizing available categories, topics, authors, or publishers in the store, you MUST ONLY mention those that are explicitly present in the provided Candidate Books list. "
+                "Do NOT hallucinate or invent categories, publishers, or books that do not exist in the candidate list. If there are fewer than 10 categories available in the list, only mention the ones that actually exist, rather than making up options to fill a list. "
+                "If none of the books are relevant or meet the criteria, explain politely and warmly as a salesperson that the shop doesn't currently carry matching titles, and do not list any recommended IDs. "
+                "You MUST return the output in JSON format with exactly two keys:\n"
+                "1. 'answer': An engaging, welcoming, and helpful recommendation response in Vietnamese written in a salesperson style.\n"
+                "2. 'recommended_ids': A JSON array of integers representing the IDs of the relevant books.\n\n"
+                f"Candidate Books:\n{books_list_str}"
+            )
+            openai_messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                for h in history:
+                    openai_messages.append({
+                        "role": h.get("role", "user"),
+                        "content": h.get("content", "")
+                    })
+            openai_messages.append({"role": "user", "content": f"User query: {query}"})
+
+            payload = {
+                "model": self.chat_model,
+                "messages": openai_messages,
+                "temperature": 0.3,
+                "response_format": {"type": "json_object"}
+            }
+            try:
+                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                content = json.loads(response["choices"][0]["message"]["content"])
+                return content.get("answer", ""), content.get("recommended_ids", [])
+            except Exception:
+                pass
+
+        recommended_ids = []
+        words = query.lower().split()
+        for b in books:
+            title_lower = b['title'].lower()
+            desc_lower = (b.get('description') or '').lower()
+            matched = False
+            for word in words:
+                if len(word) > 2 and (word in title_lower or word in desc_lower):
+                    matched = True
+                    break
+            if matched:
+                recommended_ids.append(b['id'])
+
+        if not recommended_ids:
+            return "Tôi không tìm thấy cuốn sách nào phù hợp với yêu cầu của bạn.", []
+
+        answer = "Dựa trên nhu cầu của bạn, tôi xin gợi ý các cuốn sách sau:\n\n"
+        for b in books:
+            if b['id'] in recommended_ids:
+                answer += f"- **{b['title']}** của tác giả {b['author']}\n"
+        return answer.strip(), recommended_ids
 
     def chat_completion_response(
         self,

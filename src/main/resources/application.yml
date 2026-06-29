@@ -23,6 +23,8 @@ spring:
       data-locations:
         - classpath:db/seed/01_users.sql
         - classpath:db/seed/02_books.sql
+        - classpath:db/seed/03_orders.sql
+        - classpath:db/seed/04_reviews.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -64,7 +66,7 @@ bookverse:
     tmn-code: ${VNPAY_TMN_CODE:}
     hash-secret: ${VNPAY_HASH_SECRET:}
     payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
-    return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/success}
+    return-url: ${VNPAY_RETURN_URL:http://localhost:5173/payment/result}
     cancel-url: ${VNPAY_CANCEL_URL:http://localhost:5173/payment/cancel}
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
@@ -75,7 +77,7 @@ bookverse:
       batch-size: ${EXPIRED_ORDER_SCHEDULER_BATCH_SIZE:50}
   rag:
     base-url: ${RAG_BASE_URL:http://localhost:8000}
-    timeout-ms: ${RAG_TIMEOUT_MS:10000}
+    timeout-ms: ${RAG_TIMEOUT_MS:300000}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}

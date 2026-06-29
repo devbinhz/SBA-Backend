@@ -12,5 +12,7 @@ public interface ReviewService {
 
     Page<ReviewResponseDTO> getReviewsByBook(Long bookId, Pageable pageable);
 
+    Page<ReviewResponseDTO> getAllReviews(Pageable pageable);
+
     void deleteReview(Long reviewId, SecurityUser securityUser);
 }

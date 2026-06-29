@@ -1,5 +1,6 @@
 package com.bookverse.service.statistics.impl;
 
+import com.bookverse.config.MinioProperties;
 import com.bookverse.dto.response.statistics.BookSellingStatsDTO;
 import com.bookverse.dto.response.statistics.StatisticsOverviewResponseDTO;
 import com.bookverse.enums.OrderStatus;
@@ -21,6 +22,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
     private final OrderRepository orderRepository;
+    private final MinioProperties minioProperties;
 
     @Override
     @Transactional(readOnly = true)
@@ -40,13 +42,19 @@ public class StatisticsServiceImpl implements StatisticsService {
 
         List<BookSellingStatsDTO> topSellingBooks = bookRepository.findTopSellingBooks(PageRequest.of(0, 10))
                 .stream()
-                .map(book -> BookSellingStatsDTO.builder()
-                        .id(book.getId())
-                        .title(book.getTitle())
-                        .author(book.getAuthor())
-                        .coverUrl(book.getCoverUrl())
-                        .soldCount(book.getSoldCount())
-                        .build())
+                .map(book -> {
+                    String coverUrl = book.getCoverUrl();
+                    if ((coverUrl == null || coverUrl.isBlank()) && book.getCoverKey() != null && !book.getCoverKey().isBlank()) {
+                        coverUrl = minioProperties.endpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + book.getCoverKey();
+                    }
+                    return BookSellingStatsDTO.builder()
+                            .id(book.getId())
+                            .title(book.getTitle())
+                            .author(book.getAuthor())
+                            .coverUrl(coverUrl)
+                            .soldCount(book.getSoldCount())
+                            .build();
+                })
                 .toList();
 
         return StatisticsOverviewResponseDTO.builder()
