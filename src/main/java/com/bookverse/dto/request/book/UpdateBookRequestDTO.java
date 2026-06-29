@@ -3,6 +3,7 @@ package com.bookverse.dto.request.book;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,17 +16,23 @@ import lombok.NoArgsConstructor;
 public class UpdateBookRequestDTO {
 
     @NotBlank(message = "Title cannot be blank")
+    @Size(max = 255, message = "Title must be at most 255 characters")
     private String title;
 
     @NotBlank(message = "Author cannot be blank")
+    @Size(max = 255, message = "Author must be at most 255 characters")
     private String author;
 
+    @Size(max = 30, message = "ISBN must be at most 30 characters")
     private String isbn;
 
+    @Size(max = 255, message = "Publisher must be at most 255 characters")
     private String publisher;
 
+    @Min(value = 1000, message = "Publication year must be valid")
     private Integer publicationYear;
 
+    @Size(max = 20, message = "Language must be at most 20 characters")
     private String language;
 
     @Min(value = 1, message = "Pages must be greater than 0")
@@ -43,10 +50,13 @@ public class UpdateBookRequestDTO {
 
     private String description;
 
+    @Size(max = 500, message = "Cover URL must be at most 500 characters")
     private String coverUrl;
 
+    @Size(max = 500, message = "File key must be at most 500 characters")
     private String fileKey;
 
+    @Size(max = 500, message = "Cover key must be at most 500 characters")
     private String coverKey;
 
     @Builder.Default
