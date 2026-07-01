@@ -88,4 +88,68 @@ public class VoucherServiceImpl implements VoucherService {
 
         log.info("Gửi thông báo cho user {} nhận voucher {} (ẩn logic tier)", userId, code);
     }
+
+    @Override
+    @Transactional
+    public com.bookverse.dto.response.voucher.AdminVoucherResponseDTO createVoucherConfig(com.bookverse.dto.request.voucher.VoucherCreateRequestDTO request) {
+        Voucher voucher = Voucher.builder()
+            .name(request.getName())
+            .codePrefix(request.getCodePrefix())
+            .discountType(request.getDiscountType())
+            .discountValue(request.getDiscountValue())
+            .tierMinAmount(request.getTierMinAmount())
+            .active(request.isActive())
+            .build();
+        voucher = voucherRepository.save(voucher);
+        return voucherMapper.toAdminResponse(voucher);
+    }
+
+    @Override
+    @Transactional
+    public com.bookverse.dto.response.voucher.AdminVoucherResponseDTO updateVoucherConfig(Long id, com.bookverse.dto.request.voucher.VoucherUpdateRequestDTO request) {
+        Voucher voucher = voucherRepository.findById(id)
+            .orElseThrow(() -> new com.bookverse.common.exception.ResourceNotFoundException("Voucher not found"));
+        
+        voucher.setName(request.getName());
+        voucher.setCodePrefix(request.getCodePrefix());
+        voucher.setDiscountType(request.getDiscountType());
+        voucher.setDiscountValue(request.getDiscountValue());
+        voucher.setTierMinAmount(request.getTierMinAmount());
+        voucher.setActive(request.isActive());
+        
+        voucher = voucherRepository.save(voucher);
+        return voucherMapper.toAdminResponse(voucher);
+    }
+
+    @Override
+    @Transactional
+    public void deleteVoucherConfig(Long id) {
+        Voucher voucher = voucherRepository.findById(id)
+            .orElseThrow(() -> new com.bookverse.common.exception.ResourceNotFoundException("Voucher not found"));
+        voucher.setActive(false);
+        voucherRepository.save(voucher);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponseDTO<com.bookverse.dto.response.voucher.AdminVoucherResponseDTO> getAllVoucherConfigs(Boolean active, Pageable pageable) {
+        Page<Voucher> page;
+        if (active != null) {
+            page = voucherRepository.findByActive(active, pageable);
+        } else {
+            page = voucherRepository.findAll(pageable);
+        }
+        
+        List<com.bookverse.dto.response.voucher.AdminVoucherResponseDTO> dtos = page.getContent().stream()
+            .map(voucherMapper::toAdminResponse)
+            .toList();
+
+        return new PageResponseDTO<>(
+            dtos,
+            page.getNumber(),
+            page.getSize(),
+            page.getTotalElements(),
+            page.getTotalPages()
+        );
+    }
 }

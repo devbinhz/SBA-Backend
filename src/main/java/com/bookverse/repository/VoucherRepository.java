@@ -10,4 +10,5 @@ import java.util.List;
 public interface VoucherRepository extends JpaRepository<Voucher, Long> {
     List<Voucher> findByActiveTrue();
     List<Voucher> findByActiveTrueAndTierMinAmountLessThanEqualOrderByTierMinAmountDesc(Long tierMinAmount);
+    org.springframework.data.domain.Page<Voucher> findByActive(boolean active, org.springframework.data.domain.Pageable pageable);
 }

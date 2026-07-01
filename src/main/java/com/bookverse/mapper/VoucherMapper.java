@@ -23,4 +23,22 @@ public class VoucherMapper {
             .expiresAt(userVoucher.getExpiresAt())
             .build();
     }
+
+    public com.bookverse.dto.response.voucher.AdminVoucherResponseDTO toAdminResponse(com.bookverse.entity.Voucher voucher) {
+        if (voucher == null) {
+            return null;
+        }
+
+        return com.bookverse.dto.response.voucher.AdminVoucherResponseDTO.builder()
+            .id(voucher.getId())
+            .name(voucher.getName())
+            .codePrefix(voucher.getCodePrefix())
+            .discountType(voucher.getDiscountType())
+            .discountValue(voucher.getDiscountValue())
+            .tierMinAmount(voucher.getTierMinAmount())
+            .active(voucher.isActive())
+            .createdAt(voucher.getCreatedAt())
+            .updatedAt(voucher.getUpdatedAt())
+            .build();
+    }
 }
