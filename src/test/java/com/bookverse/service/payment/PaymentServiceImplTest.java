@@ -22,6 +22,7 @@ import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.impl.PaymentServiceImpl;
+import com.bookverse.service.voucher.VoucherService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,7 @@ class PaymentServiceImplTest {
     private BookRepository bookRepository;
     private StockMovementRepository stockMovementRepository;
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private VoucherService voucherService;
     private PaymentServiceImpl paymentService;
 
     @BeforeEach
@@ -65,6 +67,7 @@ class PaymentServiceImplTest {
         bookRepository = mock(BookRepository.class);
         stockMovementRepository = mock(StockMovementRepository.class);
         orderStatusHistoryRepository = mock(OrderStatusHistoryRepository.class);
+        voucherService = mock(VoucherService.class);
         paymentService = new PaymentServiceImpl(
                 checkoutService,
                 paymentGateway,
@@ -74,6 +77,7 @@ class PaymentServiceImplTest {
                 bookRepository,
                 stockMovementRepository,
                 orderStatusHistoryRepository,
+                voucherService,
                 new ObjectMapper(),
                 new TransactionTemplate(new NoopTransactionManager())
         );
@@ -124,7 +128,12 @@ class PaymentServiceImplTest {
     @Test
     void webhookSuccessMarksPendingOrderPaidAndDedupesRepeatEvent() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_ResponseCode", "00");
-        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).build();
+        Order order = Order.builder()
+                .id(1001L)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .user(com.bookverse.entity.User.builder().id(1L).build())
+                .total(1000L)
+                .build();
         Payment payment = Payment.builder()
                 .id(501L)
                 .order(order)
@@ -193,7 +202,7 @@ class PaymentServiceImplTest {
     @Test
     void webhookFailureCancelsPendingOrderAndReleasesStock() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_ResponseCode", "24");
-        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).build();
+        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).user(com.bookverse.entity.User.builder().id(1L).build()).build();
         Book book = Book.builder().id(10L).title("Clean Code").build();
         Payment payment = Payment.builder()
                 .id(501L)

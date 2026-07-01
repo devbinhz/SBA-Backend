@@ -52,8 +52,16 @@ public class Order extends BaseEntity {
     @Column(name = "shipping_fee", nullable = false)
     private Long shippingFee;
 
+    @Column(name = "discount_amount", nullable = false)
+    @Default
+    private Long discountAmount = 0L;
+
     @Column(nullable = false)
     private Long total;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_voucher_id")
+    private UserVoucher userVoucher;
 
     @Column(name = "address_snapshot", nullable = false, columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)

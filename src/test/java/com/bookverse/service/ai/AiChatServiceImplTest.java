@@ -32,6 +32,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.bookverse.repository.ChatMessageRepository;
+import com.bookverse.repository.ChatSessionRepository;
+import com.bookverse.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 class AiChatServiceImplTest {
 
     private BookRepository bookRepository;
@@ -39,6 +44,10 @@ class AiChatServiceImplTest {
     private BookOwnershipService bookOwnershipService;
     private AiUsageService aiUsageService;
     private BookMapper bookMapper;
+    private ChatSessionRepository chatSessionRepository;
+    private ChatMessageRepository chatMessageRepository;
+    private UserRepository userRepository;
+    private ObjectMapper objectMapper;
     private AiChatServiceImpl aiChatService;
 
     @BeforeEach
@@ -48,7 +57,22 @@ class AiChatServiceImplTest {
         bookOwnershipService = Mockito.mock(BookOwnershipService.class);
         aiUsageService = Mockito.mock(AiUsageService.class);
         bookMapper = Mockito.mock(BookMapper.class);
-        aiChatService = new AiChatServiceImpl(bookRepository, ragClient, bookOwnershipService, aiUsageService, bookMapper);
+        chatSessionRepository = Mockito.mock(ChatSessionRepository.class);
+        chatMessageRepository = Mockito.mock(ChatMessageRepository.class);
+        userRepository = Mockito.mock(UserRepository.class);
+        objectMapper = new ObjectMapper();
+        
+        aiChatService = new AiChatServiceImpl(
+                bookRepository, 
+                ragClient, 
+                bookOwnershipService, 
+                aiUsageService, 
+                bookMapper,
+                chatSessionRepository,
+                chatMessageRepository,
+                userRepository,
+                objectMapper
+        );
     }
 
     @Test
@@ -107,7 +131,7 @@ class AiChatServiceImplTest {
         assertNotNull(chatResp);
         assertEquals(1, chatResp.sources().size());
         assertEquals("Clean Code", chatResp.sources().get(0).bookTitle());
-        assertTrue(chatResp.answer().contains("Use meaningful names."));
+        assertTrue(chatResp.answer().contains("LLM answer"));
 
         verify(aiUsageService).logUsage(eq(100L), eq(AiRequestType.BOOK_CHAT), eq("meaningful names"), any(), eq(10), eq(20), any(Long.class));
     }
@@ -128,7 +152,7 @@ class AiChatServiceImplTest {
         when(ragClient.catalogSearch(any())).thenReturn(catalogResp);
         when(bookRepository.findAllById(any())).thenReturn(List.of(book));
 
-        AiRecommendRequest request = new AiRecommendRequest("Java", 5);
+        AiRecommendRequest request = new AiRecommendRequest("Java", 5, java.util.Collections.emptyList());
         AiRecommendResponse response = aiChatService.recommend(request, 100L);
 
         assertNotNull(response);

@@ -14,4 +14,6 @@ public class CheckoutRequestDTO {
 
     @NotEmpty(message = "At least one cart item must be selected")
     private List<@NotNull(message = "Cart item id is required") Long> cartItemIds;
+
+    private Long userVoucherId;
 }

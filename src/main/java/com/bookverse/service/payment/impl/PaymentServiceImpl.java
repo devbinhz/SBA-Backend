@@ -28,6 +28,8 @@ import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.PaymentService;
+import com.bookverse.service.voucher.VoucherService;
+import com.bookverse.enums.VoucherStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -53,6 +55,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final BookRepository bookRepository;
     private final StockMovementRepository stockMovementRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final VoucherService voucherService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -189,6 +192,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .toStatus(OrderStatus.PAID)
                 .note("VNPAY webhook confirmed payment")
                 .build());
+        
+        // Award voucher
+        voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
     }
 
     private void processFailedOrCancelledPayment(Payment payment, Order order, PaymentEvent event, PaymentWebhookResult result) {
@@ -223,6 +229,12 @@ public class PaymentServiceImpl implements PaymentService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         releaseStock(order, releaseReason);
+        
+        if (order.getUserVoucher() != null) {
+            order.getUserVoucher().setStatus(VoucherStatus.UNUSED);
+            order.getUserVoucher().setUsedAt(null);
+        }
+
         orderStatusHistoryRepository.save(OrderStatusHistory.builder()
                 .order(order)
                 .fromStatus(OrderStatus.PENDING_PAYMENT)

@@ -24,6 +24,7 @@ import com.bookverse.repository.OrderStatusHistoryRepository;
 import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.repository.UserRepository;
+import com.bookverse.repository.UserVoucherRepository;
 import com.bookverse.service.checkout.impl.CheckoutServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +53,8 @@ class CheckoutServiceImplTest {
     private PaymentRepository paymentRepository;
     private StockMovementRepository stockMovementRepository;
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private UserVoucherRepository userVoucherRepository;
+    private OrderProperties orderProperties;
     private CheckoutServiceImpl checkoutService;
 
     @BeforeEach
@@ -66,6 +69,8 @@ class CheckoutServiceImplTest {
         paymentRepository = mock(PaymentRepository.class);
         stockMovementRepository = mock(StockMovementRepository.class);
         orderStatusHistoryRepository = mock(OrderStatusHistoryRepository.class);
+        userVoucherRepository = mock(UserVoucherRepository.class);
+        orderProperties = new OrderProperties(30000L, 15);
         checkoutService = new CheckoutServiceImpl(
                 userRepository,
                 addressRepository,
@@ -77,7 +82,8 @@ class CheckoutServiceImplTest {
                 paymentRepository,
                 stockMovementRepository,
                 orderStatusHistoryRepository,
-                new OrderProperties(30000, 15),
+                userVoucherRepository,
+                orderProperties,
                 new ObjectMapper()
         );
     }

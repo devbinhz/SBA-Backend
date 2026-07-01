@@ -22,6 +22,7 @@ public class CheckoutResponseDTO {
     private PaymentStatus paymentStatus;
     private Long subtotal;
     private Long shippingFee;
+    private Long discountAmount;
     private Long total;
     private Long providerOrderCode;
     private String checkoutUrl;

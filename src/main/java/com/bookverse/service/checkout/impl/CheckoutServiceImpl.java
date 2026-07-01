@@ -37,7 +37,11 @@ import com.bookverse.repository.OrderStatusHistoryRepository;
 import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.repository.UserRepository;
+import com.bookverse.repository.UserVoucherRepository;
 import com.bookverse.service.checkout.CheckoutService;
+import com.bookverse.entity.UserVoucher;
+import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.DiscountType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -66,6 +70,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final PaymentRepository paymentRepository;
     private final StockMovementRepository stockMovementRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final UserVoucherRepository userVoucherRepository;
     private final OrderProperties orderProperties;
     private final ObjectMapper objectMapper;
 
@@ -76,7 +81,9 @@ public class CheckoutServiceImpl implements CheckoutService {
         getOwnedAddress(user.getId(), request.getAddressId());
         List<CartItem> cartItems = getSelectedCartItems(user.getId(), selectedCartItemIds(request));
         List<CheckoutLine> lines = validateAndPrice(cartItems);
-        return toPreview(lines);
+        long subtotal = subtotal(lines);
+        long discountAmount = calculateDiscount(user.getId(), request.getUserVoucherId(), subtotal);
+        return toPreview(lines, discountAmount);
     }
 
     @Override
@@ -104,7 +111,20 @@ public class CheckoutServiceImpl implements CheckoutService {
         }
 
         long subtotal = subtotal(lines);
+        
+        UserVoucher userVoucher = null;
+        long discountAmount = 0L;
+        if (request.getUserVoucherId() != null) {
+            userVoucher = validateAndGetUserVoucher(user.getId(), request.getUserVoucherId(), subtotal);
+            discountAmount = calculateDiscountAmount(userVoucher, subtotal);
+            // Mark as used
+            userVoucher.setStatus(VoucherStatus.USED);
+            userVoucher.setUsedAt(Instant.now());
+            userVoucherRepository.save(userVoucher);
+        }
+
         long shippingFee = orderProperties.shippingFeeVnd();
+        long total = Math.max(0L, subtotal - discountAmount + shippingFee);
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
         Order order = Order.builder()
@@ -112,7 +132,9 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .status(OrderStatus.PENDING_PAYMENT)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
-                .total(subtotal + shippingFee)
+                .discountAmount(discountAmount)
+                .userVoucher(userVoucher)
+                .total(total)
                 .addressSnapshot(addressSnapshot(address))
                 .paymentMethod(PaymentProvider.VNPAY)
                 .idempotencyKey(normalizedKey)
@@ -276,13 +298,15 @@ public class CheckoutServiceImpl implements CheckoutService {
         stockMovementRepository.saveAll(movements);
     }
 
-    private CheckoutPreviewResponseDTO toPreview(List<CheckoutLine> lines) {
+    private CheckoutPreviewResponseDTO toPreview(List<CheckoutLine> lines, long discountAmount) {
         long subtotal = subtotal(lines);
         long shippingFee = orderProperties.shippingFeeVnd();
+        long total = Math.max(0L, subtotal - discountAmount + shippingFee);
         return CheckoutPreviewResponseDTO.builder()
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
-                .total(subtotal + shippingFee)
+                .discountAmount(discountAmount)
+                .total(total)
                 .items(lines.stream().map(this::toItemResponse).toList())
                 .build();
     }
@@ -302,6 +326,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .paymentStatus(payment.getStatus())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
+                .discountAmount(order.getDiscountAmount())
                 .total(order.getTotal())
                 .providerOrderCode(payment.getProviderOrderCode())
                 .checkoutUrl(payment.getCheckoutUrl())
@@ -332,6 +357,38 @@ public class CheckoutServiceImpl implements CheckoutService {
 
     private long subtotal(List<CheckoutLine> lines) {
         return lines.stream().mapToLong(CheckoutLine::lineTotal).sum();
+    }
+
+    private UserVoucher validateAndGetUserVoucher(Long userId, Long userVoucherId, long subtotal) {
+        UserVoucher userVoucher = userVoucherRepository.findByIdAndUserId(userVoucherId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Voucher not found or does not belong to you"));
+
+        if (userVoucher.getStatus() != VoucherStatus.UNUSED) {
+            throw new BadRequestException("Voucher has already been used or is expired");
+        }
+        if (Instant.now().isAfter(userVoucher.getExpiresAt())) {
+            throw new BadRequestException("Voucher has expired");
+        }
+        if (subtotal < userVoucher.getVoucher().getTierMinAmount()) {
+            throw new BadRequestException("Order subtotal does not meet the minimum amount for this voucher");
+        }
+        return userVoucher;
+    }
+
+    private long calculateDiscountAmount(UserVoucher userVoucher, long subtotal) {
+        if (userVoucher.getVoucher().getDiscountType() == DiscountType.FIXED) {
+            return Math.min(subtotal, userVoucher.getVoucher().getDiscountValue());
+        } else {
+            return Math.min(subtotal, (long) (subtotal * (userVoucher.getVoucher().getDiscountValue() / 100.0)));
+        }
+    }
+
+    private long calculateDiscount(Long userId, Long userVoucherId, long subtotal) {
+        if (userVoucherId == null) {
+            return 0L;
+        }
+        UserVoucher userVoucher = validateAndGetUserVoucher(userId, userVoucherId, subtotal);
+        return calculateDiscountAmount(userVoucher, subtotal);
     }
 
     private record CheckoutLine(Book book, int quantity, Long unitPrice, Long lineTotal) {
