@@ -16,8 +16,12 @@ import com.bookverse.integration.rag.dto.RagQueryResponse;
 import com.bookverse.integration.rag.dto.RagSource;
 import com.bookverse.mapper.BookMapper;
 import com.bookverse.repository.BookRepository;
+import com.bookverse.repository.ChatSessionRepository;
+import com.bookverse.repository.ChatMessageRepository;
+import com.bookverse.repository.UserRepository;
 import com.bookverse.service.ai.impl.AiChatServiceImpl;
 import com.bookverse.service.book.BookOwnershipService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -39,6 +43,10 @@ class AiChatServiceImplTest {
     private BookOwnershipService bookOwnershipService;
     private AiUsageService aiUsageService;
     private BookMapper bookMapper;
+    private ChatSessionRepository chatSessionRepository;
+    private ChatMessageRepository chatMessageRepository;
+    private UserRepository userRepository;
+    private ObjectMapper objectMapper;
     private AiChatServiceImpl aiChatService;
 
     @BeforeEach
@@ -48,7 +56,11 @@ class AiChatServiceImplTest {
         bookOwnershipService = Mockito.mock(BookOwnershipService.class);
         aiUsageService = Mockito.mock(AiUsageService.class);
         bookMapper = Mockito.mock(BookMapper.class);
-        aiChatService = new AiChatServiceImpl(bookRepository, ragClient, bookOwnershipService, aiUsageService, bookMapper);
+        chatSessionRepository = Mockito.mock(ChatSessionRepository.class);
+        chatMessageRepository = Mockito.mock(ChatMessageRepository.class);
+        userRepository = Mockito.mock(UserRepository.class);
+        objectMapper = new ObjectMapper();
+        aiChatService = new AiChatServiceImpl(bookRepository, ragClient, bookOwnershipService, aiUsageService, bookMapper, chatSessionRepository, chatMessageRepository, userRepository, objectMapper);
     }
 
     @Test
@@ -128,7 +140,7 @@ class AiChatServiceImplTest {
         when(ragClient.catalogSearch(any())).thenReturn(catalogResp);
         when(bookRepository.findAllById(any())).thenReturn(List.of(book));
 
-        AiRecommendRequest request = new AiRecommendRequest("Java", 5);
+        AiRecommendRequest request = new AiRecommendRequest("Java", 5, null);
         AiRecommendResponse response = aiChatService.recommend(request, 100L);
 
         assertNotNull(response);
