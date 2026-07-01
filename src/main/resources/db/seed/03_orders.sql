@@ -1,9 +1,10 @@
-INSERT INTO orders (user_id, status, subtotal, shipping_fee, total, address_snapshot, payment_method, idempotency_key, created_at, updated_at, paid_at)
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot, payment_method, idempotency_key, created_at, updated_at, paid_at)
 VALUES (
     (SELECT id FROM users WHERE email = 'customer@bookverse.local'),
     'PAID',
     390000,
     30000,
+    0,
     420000,
     '{"city": "Hanoi", "line": "123 Main St", "ward": "Ward 1", "phone": "0987654321", "district": "Ba Dinh", "recipient": "BookVerse Customer"}',
     'VNPAY',
@@ -23,12 +24,13 @@ VALUES (
     390000
 );
 
-INSERT INTO orders (user_id, status, subtotal, shipping_fee, total, address_snapshot, payment_method, idempotency_key, created_at, updated_at, paid_at, delivered_at)
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot, payment_method, idempotency_key, created_at, updated_at, paid_at, delivered_at)
 VALUES (
     (SELECT id FROM users WHERE email = 'customer@bookverse.local'),
     'DELIVERED',
     405000,
     30000,
+    0,
     435000,
     '{"city": "Hanoi", "line": "123 Main St", "ward": "Ward 1", "phone": "0987654321", "district": "Ba Dinh", "recipient": "BookVerse Customer"}',
     'VNPAY',
