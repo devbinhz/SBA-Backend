@@ -1,6 +1,7 @@
 package com.bookverse.service.payment;
 
 import com.bookverse.common.exception.ConflictException;
+import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.PaymentVerificationFailedException;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
@@ -9,6 +10,7 @@ import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.PaymentEvent;
+import com.bookverse.entity.User;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.integration.payment.PaymentGateway;
@@ -123,6 +125,66 @@ class PaymentServiceImplTest {
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
         verify(orderStatusHistoryRepository).save(any());
+    }
+
+    @Test
+    void pendingPaymentLinkIsReturnedToOrderOwner() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        var response = paymentService.getPendingPaymentLink(1L, 1001L);
+
+        assertThat(response.getOrderId()).isEqualTo(1001L);
+        assertThat(response.getCheckoutUrl()).isEqualTo("https://vnpay.test/pay");
+    }
+
+    @Test
+    void pendingPaymentLinkRejectsAnotherCustomer() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.getPendingPaymentLink(2L, 1001L))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void pendingPaymentLinkRejectsExpiredOrder() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().minusSeconds(1))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.getPendingPaymentLink(1L, 1001L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("expired");
     }
 
     @Test

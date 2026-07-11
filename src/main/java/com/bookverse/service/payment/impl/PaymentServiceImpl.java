@@ -1,10 +1,12 @@
 package com.bookverse.service.payment.impl;
 
 import com.bookverse.common.exception.ConflictException;
+import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.PaymentVerificationFailedException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
+import com.bookverse.dto.response.payment.PendingPaymentLinkResponseDTO;
 import com.bookverse.dto.response.payment.PaymentWebhookResponseDTO;
 import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
@@ -36,6 +38,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
@@ -90,6 +93,33 @@ public class PaymentServiceImpl implements PaymentService {
             compensateCreateLinkFailure(response.getPaymentId(), exception);
             throw new ConflictException("Unable to create VNPAY checkout link");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PendingPaymentLinkResponseDTO getPendingPaymentLink(Long userId, Long orderId) {
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+        Order order = payment.getOrder();
+
+        if (!order.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("Order does not belong to current user");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT || payment.getStatus() != PaymentStatus.PENDING) {
+            throw new ConflictException("Order is not awaiting payment");
+        }
+        if (order.getExpiresAt() == null || !order.getExpiresAt().isAfter(Instant.now())) {
+            throw new ConflictException("Payment window has expired");
+        }
+        if (payment.getCheckoutUrl() == null || payment.getCheckoutUrl().isBlank()) {
+            throw new ConflictException("Payment link is unavailable");
+        }
+
+        return PendingPaymentLinkResponseDTO.builder()
+                .orderId(order.getId())
+                .checkoutUrl(payment.getCheckoutUrl())
+                .expiresAt(order.getExpiresAt())
+                .build();
     }
 
     @Override

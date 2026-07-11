@@ -9,6 +9,7 @@ import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
 import com.bookverse.dto.response.order.OrderResponseDTO;
 import com.bookverse.dto.response.order.OrderStatusHistoryResponseDTO;
 import com.bookverse.dto.response.order.OrderSummaryResponseDTO;
+import com.bookverse.dto.response.payment.PendingPaymentLinkResponseDTO;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.UserRole;
 import com.bookverse.service.checkout.CheckoutService;
@@ -104,6 +105,16 @@ public class OrderController {
             @AuthenticationPrincipal(expression = "user.id") Long userId,
             @PathVariable Long orderId) {
         return ApiResponse.success(orderService.cancelPendingOrder(userId, orderId), "Order cancelled successfully");
+    }
+
+    @GetMapping("/{orderId}/payment-link")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Get the active VNPAY link for a pending order")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Payment link returned")
+    public ApiResponse<PendingPaymentLinkResponseDTO> getPendingPaymentLink(
+            @AuthenticationPrincipal(expression = "user.id") Long userId,
+            @PathVariable Long orderId) {
+        return ApiResponse.success(paymentService.getPendingPaymentLink(userId, orderId));
     }
 
     @GetMapping("/{orderId}/status-history")
