@@ -6,7 +6,6 @@ import com.bookverse.dto.request.voucher.VoucherCreateRequestDTO;
 import com.bookverse.dto.request.voucher.VoucherUpdateRequestDTO;
 import com.bookverse.dto.response.voucher.AdminVoucherResponseDTO;
 import com.bookverse.dto.response.voucher.VoucherResponseDTO;
-import com.bookverse.security.SecurityUser;
 import com.bookverse.service.voucher.VoucherService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,9 +33,9 @@ public class VoucherController {
     @PreAuthorize("hasAuthority('ROLE_CUSTOMER')")
     @Operation(summary = "Get current user's vouchers (Customer)")
     public ApiResponse<PageResponseDTO<VoucherResponseDTO>> getMyVouchers(
-            @AuthenticationPrincipal SecurityUser userDetails,
+            @AuthenticationPrincipal(expression = "user.id") Long userId,
             Pageable pageable) {
-        return ApiResponse.success(voucherService.getMyVouchers(userDetails.getUser().getId(), pageable));
+        return ApiResponse.success(voucherService.getMyVouchers(userId, pageable));
     }
 
     // --- ADMIN APIS ---
