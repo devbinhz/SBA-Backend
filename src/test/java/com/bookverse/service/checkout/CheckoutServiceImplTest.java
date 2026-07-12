@@ -13,6 +13,7 @@ import com.bookverse.entity.Payment;
 import com.bookverse.entity.User;
 import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
+import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.UserRole;
 import com.bookverse.repository.AddressRepository;
 import com.bookverse.repository.BookRepository;
@@ -24,6 +25,7 @@ import com.bookverse.repository.OrderStatusHistoryRepository;
 import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.repository.UserRepository;
+import com.bookverse.repository.UserVoucherRepository;
 import com.bookverse.service.checkout.impl.CheckoutServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,6 +54,8 @@ class CheckoutServiceImplTest {
     private PaymentRepository paymentRepository;
     private StockMovementRepository stockMovementRepository;
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private UserVoucherRepository userVoucherRepository;
+    private OrderProperties orderProperties;
     private CheckoutServiceImpl checkoutService;
 
     @BeforeEach
@@ -66,6 +70,8 @@ class CheckoutServiceImplTest {
         paymentRepository = mock(PaymentRepository.class);
         stockMovementRepository = mock(StockMovementRepository.class);
         orderStatusHistoryRepository = mock(OrderStatusHistoryRepository.class);
+        userVoucherRepository = mock(UserVoucherRepository.class);
+        orderProperties = new OrderProperties(30000L, 15);
         checkoutService = new CheckoutServiceImpl(
                 userRepository,
                 addressRepository,
@@ -77,7 +83,8 @@ class CheckoutServiceImplTest {
                 paymentRepository,
                 stockMovementRepository,
                 orderStatusHistoryRepository,
-                new OrderProperties(30000, 15),
+                userVoucherRepository,
+                orderProperties,
                 new ObjectMapper()
         );
     }
@@ -98,7 +105,29 @@ class CheckoutServiceImplTest {
         assertThat(response.getSubtotal()).isEqualTo(500000);
         assertThat(response.getShippingFee()).isEqualTo(30000);
         assertThat(response.getTotal()).isEqualTo(530000);
+        assertThat(response.getDeliveryType()).isEqualTo(DeliveryType.SELF);
+        assertThat(response.getGiftWrapFee()).isZero();
         assertThat(response.getItems()).hasSize(1);
+    }
+
+    @Test
+    void previewAddsServerCalculatedGiftWrapFee() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250000, 5)).quantity(2).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        CheckoutRequestDTO request = request();
+        request.setDeliveryType(DeliveryType.GIFT);
+
+        var response = checkoutService.preview(1L, request);
+
+        assertThat(response.getDeliveryType()).isEqualTo(DeliveryType.GIFT);
+        assertThat(response.getGiftWrapFee()).isEqualTo(10_000L);
+        assertThat(response.getTotal()).isEqualTo(540_000L);
     }
 
     @Test
@@ -126,7 +155,10 @@ class CheckoutServiceImplTest {
             return payment;
         });
 
-        var response = checkoutService.checkout(1L, " key-1 ", request());
+        CheckoutRequestDTO giftRequest = request();
+        giftRequest.setDeliveryType(DeliveryType.GIFT);
+
+        var response = checkoutService.checkout(1L, " key-1 ", giftRequest);
 
         var orderCaptor = forClass(Order.class);
         var paymentCaptor = forClass(Payment.class);
@@ -139,7 +171,13 @@ class CheckoutServiceImplTest {
         verify(paymentRepository).save(paymentCaptor.capture());
         assertThat(orderCaptor.getValue().getAddressSnapshot()).contains("Nguyen Van A", "0900000000", "123 Street", "Ho Chi Minh");
         assertThat(orderCaptor.getValue().getPaymentMethod()).isEqualTo(PaymentProvider.VNPAY);
+        assertThat(response.getDeliveryType()).isEqualTo(DeliveryType.GIFT);
+        assertThat(response.getGiftWrapFee()).isEqualTo(10_000L);
+        assertThat(response.getTotal()).isEqualTo(540_000L);
+        assertThat(orderCaptor.getValue().getDeliveryType()).isEqualTo(DeliveryType.GIFT);
+        assertThat(orderCaptor.getValue().getGiftWrapFee()).isEqualTo(10_000L);
         assertThat(paymentCaptor.getValue().getProvider()).isEqualTo(PaymentProvider.VNPAY);
+        assertThat(paymentCaptor.getValue().getAmount()).isEqualTo(540_000L);
         assertThat(paymentCaptor.getValue().getProviderOrderCode()).isEqualTo(1001001L);
         verify(bookRepository).holdStock(10L, 2);
         verify(stockMovementRepository).saveAll(any());

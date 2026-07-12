@@ -3,7 +3,10 @@ package com.bookverse.controller;
 import com.bookverse.common.dto.ApiResponse;
 import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
+import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewModerationHistoryResponseDTO;
+import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.security.SecurityUser;
 import com.bookverse.service.review.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -19,6 +22,9 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.bookverse.enums.ReviewStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -40,11 +46,47 @@ public class ReviewController {
         return ApiResponse.success(PageResponseDTO.from(reviewService.getReviewsByBook(bookId, pageable)));
     }
 
+    @GetMapping("/books/{bookId}/reviews/summary")
+    @Operation(summary = "Get published review rating breakdown for a book (Public)")
+    public ApiResponse<ReviewSummaryResponseDTO> getReviewSummary(@PathVariable Long bookId) {
+        return ApiResponse.success(reviewService.getReviewSummary(bookId));
+    }
+
+    @GetMapping("/books/{bookId}/reviews/me")
+    @PreAuthorize("hasAuthority('ROLE_CUSTOMER')")
+    @Operation(summary = "Get the current customer's review for a book")
+    public ApiResponse<ReviewResponseDTO> getMyReviewForBook(
+            @PathVariable Long bookId,
+            @AuthenticationPrincipal(expression = "user.id") Long userId) {
+        return ApiResponse.success(reviewService.getMyReviewForBook(bookId, userId).orElse(null));
+    }
+
     @GetMapping("/admin/reviews")
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @Operation(summary = "Get all reviews (Admin)")
-    public ApiResponse<PageResponseDTO<ReviewResponseDTO>> getAllReviews(Pageable pageable) {
-        return ApiResponse.success(PageResponseDTO.from(reviewService.getAllReviews(pageable)));
+    public ApiResponse<PageResponseDTO<ReviewResponseDTO>> getAllReviews(
+            @RequestParam(required = false) ReviewStatus status,
+            Pageable pageable) {
+        return ApiResponse.success(PageResponseDTO.from(reviewService.getAllReviews(status, pageable)));
+    }
+
+    @PutMapping("/admin/reviews/{reviewId}/moderation")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Hide or restore a review (Admin)")
+    public ApiResponse<ReviewResponseDTO> moderateReview(
+            @PathVariable Long reviewId,
+            @AuthenticationPrincipal(expression = "user.id") Long adminId,
+            @Valid @RequestBody ReviewModerationRequestDTO request) {
+        return ApiResponse.success(reviewService.moderateReview(reviewId, request, adminId));
+    }
+
+    @GetMapping("/admin/reviews/{reviewId}/moderation-history")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Get review moderation history (Admin)")
+    public ApiResponse<PageResponseDTO<ReviewModerationHistoryResponseDTO>> getModerationHistory(
+            @PathVariable Long reviewId,
+            Pageable pageable) {
+        return ApiResponse.success(PageResponseDTO.from(reviewService.getModerationHistory(reviewId, pageable)));
     }
 
     @PostMapping("/reviews")

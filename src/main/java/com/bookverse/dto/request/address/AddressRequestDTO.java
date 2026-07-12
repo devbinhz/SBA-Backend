@@ -1,6 +1,7 @@
 package com.bookverse.dto.request.address;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -12,7 +13,7 @@ public class AddressRequestDTO {
     private String recipient;
 
     @NotBlank(message = "Phone is required")
-    @Size(max = 20, message = "Phone must be at most 20 characters")
+    @Pattern(regexp = "^(0|\\+84)(3|5|7|8|9)\\d{8}$", message = "Invalid Vietnamese phone number format")
     private String phone;
 
     @NotBlank(message = "Address line is required")

@@ -19,15 +19,25 @@ public interface BookService {
             Pageable pageable
     );
 
+    PageResponseDTO<BookResponseDTO> searchBooksAdmin(
+            String query,
+            Long categoryId,
+            Boolean active,
+            String sort,
+            Pageable pageable
+    );
+
     BookResponseDTO getBookDetail(Long id);
 
     BookResponseDTO createBook(CreateBookRequestDTO request);
 
-    BookResponseDTO updateBook(Long id, UpdateBookRequestDTO request);
+    BookResponseDTO updateBook(Long id, UpdateBookRequestDTO request, Long currentUserId);
 
-    void setBookActive(Long id, boolean active);
+    void setBookActive(Long id, boolean active, Long currentUserId);
 
     void adjustStock(Long id, StockAdjustmentRequestDTO request, Long currentUserId);
 
     PageResponseDTO<com.bookverse.dto.response.book.StockMovementResponseDTO> getStockMovements(Long bookId, Pageable pageable);
+
+    PageResponseDTO<com.bookverse.dto.response.book.BookChangeLogResponseDTO> getBookChangeLogs(Long bookId, Pageable pageable);
 }

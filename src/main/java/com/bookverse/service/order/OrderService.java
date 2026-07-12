@@ -9,9 +9,19 @@ import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.UserRole;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
+
 public interface OrderService {
 
-    PageResponseDTO<OrderSummaryResponseDTO> listOrders(Long currentUserId, UserRole currentUserRole, OrderStatus status, Long userId, Pageable pageable);
+    PageResponseDTO<OrderSummaryResponseDTO> listOrders(
+            Long currentUserId,
+            UserRole currentUserRole,
+            OrderStatus status,
+            List<OrderStatus> statuses,
+            Long userId,
+            String search,
+            Pageable pageable
+    );
 
     OrderResponseDTO getOrder(Long currentUserId, UserRole currentUserRole, Long orderId);
 

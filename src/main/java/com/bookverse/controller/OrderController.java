@@ -9,6 +9,7 @@ import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
 import com.bookverse.dto.response.order.OrderResponseDTO;
 import com.bookverse.dto.response.order.OrderStatusHistoryResponseDTO;
 import com.bookverse.dto.response.order.OrderSummaryResponseDTO;
+import com.bookverse.dto.response.payment.PendingPaymentLinkResponseDTO;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.UserRole;
 import com.bookverse.service.checkout.CheckoutService;
@@ -34,6 +35,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -80,9 +83,11 @@ public class OrderController {
             @AuthenticationPrincipal(expression = "user.id") Long userId,
             @AuthenticationPrincipal(expression = "user.role") UserRole role,
             @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) List<OrderStatus> statuses,
             @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String search,
             Pageable pageable) {
-        return ApiResponse.success(orderService.listOrders(userId, role, status, customerId, pageable));
+        return ApiResponse.success(orderService.listOrders(userId, role, status, statuses, customerId, search, pageable));
     }
 
     @GetMapping("/{orderId}")
@@ -104,6 +109,16 @@ public class OrderController {
             @AuthenticationPrincipal(expression = "user.id") Long userId,
             @PathVariable Long orderId) {
         return ApiResponse.success(orderService.cancelPendingOrder(userId, orderId), "Order cancelled successfully");
+    }
+
+    @GetMapping("/{orderId}/payment-link")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Get the active VNPAY link for a pending order")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Payment link returned")
+    public ApiResponse<PendingPaymentLinkResponseDTO> getPendingPaymentLink(
+            @AuthenticationPrincipal(expression = "user.id") Long userId,
+            @PathVariable Long orderId) {
+        return ApiResponse.success(paymentService.getPendingPaymentLink(userId, orderId));
     }
 
     @GetMapping("/{orderId}/status-history")

@@ -3,14 +3,18 @@ package com.bookverse.service.review.impl;
 import com.bookverse.common.exception.ConflictException;
 import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
+import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
+import com.bookverse.entity.ReviewModerationHistory;
 import com.bookverse.entity.User;
 import com.bookverse.mapper.ReviewMapper;
+import com.bookverse.enums.ReviewStatus;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
 import com.bookverse.repository.ReviewRepository;
+import com.bookverse.repository.ReviewModerationHistoryRepository;
 import com.bookverse.repository.UserRepository;
 import com.bookverse.security.SecurityUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +29,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +41,9 @@ class ReviewServiceImplTest {
 
     @Mock
     private ReviewRepository reviewRepository;
+
+    @Mock
+    private ReviewModerationHistoryRepository reviewModerationHistoryRepository;
 
     @Mock
     private BookRepository bookRepository;
@@ -76,8 +84,8 @@ class ReviewServiceImplTest {
             r.setId(100L);
             return r;
         });
-        when(reviewRepository.getAverageRatingByBookId(10L)).thenReturn(5.0);
-        when(reviewRepository.countByBookId(10L)).thenReturn(1);
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(5.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(1);
 
         ReviewResponseDTO mockResponse = ReviewResponseDTO.builder().id(100L).rating(5).build();
         when(reviewMapper.toResponse(any(Review.class))).thenReturn(mockResponse);
@@ -121,12 +129,88 @@ class ReviewServiceImplTest {
     void deleteReview_byOwner_success() {
         Review review = Review.builder().id(100L).user(user).book(book).build();
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
-        when(reviewRepository.getAverageRatingByBookId(10L)).thenReturn(0.0);
-        when(reviewRepository.countByBookId(10L)).thenReturn(0);
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(0.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(0);
 
         reviewService.deleteReview(100L, securityUser);
 
         verify(reviewRepository).delete(review);
         verify(bookRepository).save(book);
+    }
+
+    @Test
+    void moderateReview_hidesReviewAndRecalculatesPublishedRating() {
+        Review review = Review.builder()
+                .id(100L)
+                .user(user)
+                .book(book)
+                .status(ReviewStatus.PUBLISHED)
+                .build();
+        ReviewModerationRequestDTO request = new ReviewModerationRequestDTO();
+        request.setStatus(ReviewStatus.HIDDEN);
+        request.setReason("Contains inappropriate content");
+        when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
+        when(userRepository.findById(9L)).thenReturn(Optional.of(User.builder().id(9L).fullName("Admin User").build()));
+        when(reviewRepository.save(review)).thenReturn(review);
+        when(reviewMapper.toResponse(review)).thenReturn(ReviewResponseDTO.builder()
+                .id(100L)
+                .status(ReviewStatus.HIDDEN)
+                .build());
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(0.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(0);
+
+        ReviewResponseDTO response = reviewService.moderateReview(100L, request, 9L);
+
+        assertThat(response.getStatus()).isEqualTo(ReviewStatus.HIDDEN);
+        assertThat(review.getModerationReason()).isEqualTo("Contains inappropriate content");
+        assertThat(review.getModeratedBy()).isEqualTo(9L);
+        assertThat(review.getModeratedAt()).isNotNull();
+        ArgumentCaptor<ReviewModerationHistory> historyCaptor = ArgumentCaptor.forClass(ReviewModerationHistory.class);
+        verify(reviewModerationHistoryRepository).save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getFromStatus()).isEqualTo(ReviewStatus.PUBLISHED);
+        assertThat(historyCaptor.getValue().getToStatus()).isEqualTo(ReviewStatus.HIDDEN);
+        assertThat(historyCaptor.getValue().getModeratorName()).isEqualTo("Admin User");
+        verify(bookRepository).save(book);
+    }
+
+    @Test
+    void moderateReview_rejectsDuplicateStatusWithoutCreatingHistory() {
+        Review review = Review.builder().id(100L).user(user).book(book).status(ReviewStatus.HIDDEN).build();
+        ReviewModerationRequestDTO request = new ReviewModerationRequestDTO();
+        request.setStatus(ReviewStatus.HIDDEN);
+        request.setReason("Repeated action");
+        when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> reviewService.moderateReview(100L, request, 9L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already hidden");
+
+        verify(reviewModerationHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    void getReviewSummaryReturnsCountsForEveryRating() {
+        book.setRatingAvg(BigDecimal.valueOf(4.5));
+        book.setReviewCount(3);
+        ReviewRepository.RatingCountProjection fiveStars = mock(ReviewRepository.RatingCountProjection.class);
+        ReviewRepository.RatingCountProjection fourStars = mock(ReviewRepository.RatingCountProjection.class);
+        when(fiveStars.getRating()).thenReturn(5);
+        when(fiveStars.getCount()).thenReturn(2L);
+        when(fourStars.getRating()).thenReturn(4);
+        when(fourStars.getCount()).thenReturn(1L);
+        when(bookRepository.findById(10L)).thenReturn(Optional.of(book));
+        when(reviewRepository.countPublishedReviewsByRating(10L)).thenReturn(List.of(fiveStars, fourStars));
+
+        var summary = reviewService.getReviewSummary(10L);
+
+        assertThat(summary.getAverageRating()).isEqualByComparingTo("4.5");
+        assertThat(summary.getTotalReviews()).isEqualTo(3);
+        assertThat(summary.getRatingCounts()).containsAllEntriesOf(Map.of(
+                5, 2L,
+                4, 1L,
+                3, 0L,
+                2, 0L,
+                1, 0L
+        ));
     }
 }

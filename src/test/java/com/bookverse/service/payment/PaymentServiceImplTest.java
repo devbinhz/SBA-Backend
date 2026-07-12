@@ -1,6 +1,7 @@
 package com.bookverse.service.payment;
 
 import com.bookverse.common.exception.ConflictException;
+import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.PaymentVerificationFailedException;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
@@ -9,6 +10,7 @@ import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.PaymentEvent;
+import com.bookverse.entity.User;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.integration.payment.PaymentGateway;
@@ -22,6 +24,7 @@ import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.impl.PaymentServiceImpl;
+import com.bookverse.service.voucher.VoucherService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +56,7 @@ class PaymentServiceImplTest {
     private BookRepository bookRepository;
     private StockMovementRepository stockMovementRepository;
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private VoucherService voucherService;
     private PaymentServiceImpl paymentService;
 
     @BeforeEach
@@ -65,6 +69,7 @@ class PaymentServiceImplTest {
         bookRepository = mock(BookRepository.class);
         stockMovementRepository = mock(StockMovementRepository.class);
         orderStatusHistoryRepository = mock(OrderStatusHistoryRepository.class);
+        voucherService = mock(VoucherService.class);
         paymentService = new PaymentServiceImpl(
                 checkoutService,
                 paymentGateway,
@@ -74,6 +79,7 @@ class PaymentServiceImplTest {
                 bookRepository,
                 stockMovementRepository,
                 orderStatusHistoryRepository,
+                voucherService,
                 new ObjectMapper(),
                 new TransactionTemplate(new NoopTransactionManager())
         );
@@ -122,13 +128,79 @@ class PaymentServiceImplTest {
     }
 
     @Test
+    void pendingPaymentLinkIsReturnedToOrderOwner() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        var response = paymentService.getPendingPaymentLink(1L, 1001L);
+
+        assertThat(response.getOrderId()).isEqualTo(1001L);
+        assertThat(response.getCheckoutUrl()).isEqualTo("https://vnpay.test/pay");
+    }
+
+    @Test
+    void pendingPaymentLinkRejectsAnotherCustomer() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().plusSeconds(600))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.getPendingPaymentLink(2L, 1001L))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void pendingPaymentLinkRejectsExpiredOrder() {
+        Order order = Order.builder()
+                .id(1001L)
+                .user(User.builder().id(1L).build())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .expiresAt(Instant.now().minusSeconds(1))
+                .build();
+        Payment payment = Payment.builder()
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .checkoutUrl("https://vnpay.test/pay")
+                .build();
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(payment));
+
+        assertThatThrownBy(() -> paymentService.getPendingPaymentLink(1L, 1001L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("expired");
+    }
+
+    @Test
     void webhookSuccessMarksPendingOrderPaidAndDedupesRepeatEvent() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_ResponseCode", "00");
-        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).build();
+        Order order = Order.builder()
+                .id(1001L)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .user(com.bookverse.entity.User.builder().id(1L).build())
+                .total(1000L)
+                .build();
         Payment payment = Payment.builder()
                 .id(501L)
                 .order(order)
                 .status(PaymentStatus.PENDING)
+                .amount(1000L)
                 .providerOrderCode(1001001L)
                 .build();
         PaymentWebhookResult result = new PaymentWebhookResult(
@@ -136,6 +208,7 @@ class PaymentServiceImplTest {
                 "vnpay:1001001:txn-1",
                 "vnpay.payment",
                 1001001L,
+                1000L,
                 "txn-1",
                 true,
                 "00",
@@ -165,6 +238,49 @@ class PaymentServiceImplTest {
     }
 
     @Test
+    void webhookSuccessWithWrongAmountIsRejectedWithoutMarkingOrderPaid() {
+        Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_Amount", "90000");
+        Order order = Order.builder()
+                .id(1001L)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .user(User.builder().id(1L).build())
+                .total(1000L)
+                .build();
+        Payment payment = Payment.builder()
+                .id(501L)
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .amount(1000L)
+                .providerOrderCode(1001001L)
+                .build();
+        PaymentWebhookResult result = new PaymentWebhookResult(
+                true,
+                "vnpay:1001001:wrong-amount",
+                "vnpay.payment",
+                1001001L,
+                900L,
+                "wrong-amount",
+                true,
+                "00",
+                "00"
+        );
+        when(paymentGateway.verifyWebhook(any())).thenReturn(result);
+        when(paymentRepository.findByProviderOrderCode(1001001L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findWithLockById(501L)).thenReturn(Optional.of(payment));
+        when(paymentEventRepository.findByDedupeKey("vnpay:1001001:wrong-amount")).thenReturn(Optional.empty());
+        when(paymentEventRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> paymentService.handleVnpayWebhook(params))
+                .isInstanceOf(PaymentVerificationFailedException.class)
+                .hasMessageContaining("amount mismatch");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        verify(orderStatusHistoryRepository, never()).save(any());
+        verify(voucherService, never()).awardVoucherToUser(any(), any());
+    }
+
+    @Test
     void webhookInvalidChecksumIsSavedAndRejected() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001");
         Payment payment = Payment.builder().id(501L).providerOrderCode(1001001L).build();
@@ -173,6 +289,7 @@ class PaymentServiceImplTest {
                 "vnpay:invalid",
                 "vnpay.payment",
                 1001001L,
+                null,
                 null,
                 false,
                 null,
@@ -193,7 +310,7 @@ class PaymentServiceImplTest {
     @Test
     void webhookFailureCancelsPendingOrderAndReleasesStock() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_ResponseCode", "24");
-        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).build();
+        Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).user(com.bookverse.entity.User.builder().id(1L).build()).build();
         Book book = Book.builder().id(10L).title("Clean Code").build();
         Payment payment = Payment.builder()
                 .id(501L)
@@ -206,6 +323,7 @@ class PaymentServiceImplTest {
                 "vnpay:1001001:cancel",
                 "vnpay.payment",
                 1001001L,
+                null,
                 "cancel",
                 false,
                 "24",

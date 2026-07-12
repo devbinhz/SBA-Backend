@@ -11,7 +11,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: create
+      ddl-auto: update
     properties:
       hibernate:
         jdbc:
@@ -19,12 +19,13 @@ spring:
     defer-datasource-initialization: true
   sql:
     init:
-      mode: always
+      mode: never
       data-locations:
         - classpath:db/seed/01_users.sql
         - classpath:db/seed/02_books.sql
         - classpath:db/seed/03_orders.sql
         - classpath:db/seed/04_reviews.sql
+        - classpath:db/seed/05_vouchers.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
@@ -52,7 +53,7 @@ bookverse:
   security:
     jwt-secret: ${JWT_SECRET:change-me-at-least-32-bytes-change-me}
     jwt:
-      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:900000}
+      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:84600000}
     refresh-token:
       expiration-ms: ${REFRESH_TOKEN_EXPIRATION_MS:2592000000}
       bytes: ${REFRESH_TOKEN_BYTES:32}

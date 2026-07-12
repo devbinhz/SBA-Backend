@@ -96,7 +96,7 @@ class AiChatControllerTest {
 
     @Test
     void recommend_ShouldReturnResponse_WhenCustomerAuthenticated() throws Exception {
-        AiRecommendRequest request = new AiRecommendRequest("Recommend Java books", 5);
+        AiRecommendRequest request = new AiRecommendRequest("Recommend Java books", 5, java.util.Collections.emptyList());
         AiRecommendResponse response = new AiRecommendResponse("Here is a list", Collections.emptyList());
         when(aiChatService.recommend(any(), any())).thenReturn(response);
 

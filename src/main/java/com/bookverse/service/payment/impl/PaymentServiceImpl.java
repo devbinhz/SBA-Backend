@@ -1,10 +1,12 @@
 package com.bookverse.service.payment.impl;
 
 import com.bookverse.common.exception.ConflictException;
+import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.PaymentVerificationFailedException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
+import com.bookverse.dto.response.payment.PendingPaymentLinkResponseDTO;
 import com.bookverse.dto.response.payment.PaymentWebhookResponseDTO;
 import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
@@ -28,17 +30,21 @@ import com.bookverse.repository.PaymentRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.PaymentService;
+import com.bookverse.service.voucher.VoucherService;
+import com.bookverse.enums.VoucherStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +59,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final BookRepository bookRepository;
     private final StockMovementRepository stockMovementRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final VoucherService voucherService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
 
@@ -90,6 +97,33 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public PendingPaymentLinkResponseDTO getPendingPaymentLink(Long userId, Long orderId) {
+        Payment payment = paymentRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+        Order order = payment.getOrder();
+
+        if (!order.getUser().getId().equals(userId)) {
+            throw new ForbiddenException("Order does not belong to current user");
+        }
+        if (order.getStatus() != OrderStatus.PENDING_PAYMENT || payment.getStatus() != PaymentStatus.PENDING) {
+            throw new ConflictException("Order is not awaiting payment");
+        }
+        if (order.getExpiresAt() == null || !order.getExpiresAt().isAfter(Instant.now())) {
+            throw new ConflictException("Payment window has expired");
+        }
+        if (payment.getCheckoutUrl() == null || payment.getCheckoutUrl().isBlank()) {
+            throw new ConflictException("Payment link is unavailable");
+        }
+
+        return PendingPaymentLinkResponseDTO.builder()
+                .orderId(order.getId())
+                .checkoutUrl(payment.getCheckoutUrl())
+                .expiresAt(order.getExpiresAt())
+                .build();
+    }
+
+    @Override
     public PaymentWebhookResponseDTO handleVnpayWebhook(Map<String, String> params) {
         PaymentWebhookResult result = paymentGateway.verifyWebhook(new PaymentWebhookCommand(params));
         return transactionTemplate.execute(status -> processWebhook(params, result));
@@ -123,6 +157,11 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = lockedPayment.getOrder();
 
         if (result.success()) {
+            if (!Objects.equals(lockedPayment.getAmount(), result.amount())) {
+                event.setProcessingError("VNPAY amount does not match the expected payment amount");
+                paymentEventRepository.save(event);
+                throw new PaymentVerificationFailedException("VNPAY payment amount mismatch");
+            }
             processSuccessfulPayment(lockedPayment, order, result, event);
         } else {
             processFailedOrCancelledPayment(lockedPayment, order, event, result);
@@ -189,6 +228,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .toStatus(OrderStatus.PAID)
                 .note("VNPAY webhook confirmed payment")
                 .build());
+        
+        // Award voucher
+        voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
     }
 
     private void processFailedOrCancelledPayment(Payment payment, Order order, PaymentEvent event, PaymentWebhookResult result) {
@@ -223,6 +265,12 @@ public class PaymentServiceImpl implements PaymentService {
         order.setStatus(OrderStatus.CANCELLED);
         order.setCancelledAt(Instant.now());
         releaseStock(order, releaseReason);
+        
+        if (order.getUserVoucher() != null) {
+            order.getUserVoucher().setStatus(VoucherStatus.UNUSED);
+            order.getUserVoucher().setUsedAt(null);
+        }
+
         orderStatusHistoryRepository.save(OrderStatusHistory.builder()
                 .order(order)
                 .fromStatus(OrderStatus.PENDING_PAYMENT)

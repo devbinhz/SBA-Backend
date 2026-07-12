@@ -54,6 +54,18 @@ public class BookController {
         return ApiResponse.success(bookService.getBookDetail(id));
     }
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Search and list all books (Admin)")
+    public ApiResponse<PageResponseDTO<BookResponseDTO>> searchBooksAdmin(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String sort,
+            Pageable pageable) {
+        return ApiResponse.success(bookService.searchBooksAdmin(query, categoryId, active, sort, pageable));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
@@ -67,8 +79,9 @@ public class BookController {
     @Operation(summary = "Update an existing book (Admin)")
     public ApiResponse<BookResponseDTO> updateBook(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateBookRequestDTO request) {
-        return ApiResponse.success(bookService.updateBook(id, request));
+            @Valid @RequestBody UpdateBookRequestDTO request,
+            @AuthenticationPrincipal(expression = "user.id") Long adminId) {
+        return ApiResponse.success(bookService.updateBook(id, request, adminId));
     }
 
     @PutMapping("/{id}/active")
@@ -76,10 +89,20 @@ public class BookController {
     @Operation(summary = "Activate/deactivate a book (Admin)")
     public ApiResponse<Void> setBookActive(
             @PathVariable Long id,
-            @RequestBody Map<String, Boolean> payload) {
+            @RequestBody Map<String, Boolean> payload,
+            @AuthenticationPrincipal(expression = "user.id") Long adminId) {
         boolean active = payload.getOrDefault("active", true);
-        bookService.setBookActive(id, active);
+        bookService.setBookActive(id, active, adminId);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/{id}/change-logs")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "List field-level changes for a book (Admin)")
+    public ApiResponse<PageResponseDTO<com.bookverse.dto.response.book.BookChangeLogResponseDTO>> getBookChangeLogs(
+            @PathVariable Long id,
+            Pageable pageable) {
+        return ApiResponse.success(bookService.getBookChangeLogs(id, pageable));
     }
 
     @PostMapping("/{id}/stock-adjustments")
