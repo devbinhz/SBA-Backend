@@ -7,12 +7,14 @@ import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
+import com.bookverse.entity.ReviewModerationHistory;
 import com.bookverse.entity.User;
 import com.bookverse.mapper.ReviewMapper;
 import com.bookverse.enums.ReviewStatus;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
 import com.bookverse.repository.ReviewRepository;
+import com.bookverse.repository.ReviewModerationHistoryRepository;
 import com.bookverse.repository.UserRepository;
 import com.bookverse.security.SecurityUser;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,9 @@ class ReviewServiceImplTest {
 
     @Mock
     private ReviewRepository reviewRepository;
+
+    @Mock
+    private ReviewModerationHistoryRepository reviewModerationHistoryRepository;
 
     @Mock
     private BookRepository bookRepository;
@@ -145,6 +150,7 @@ class ReviewServiceImplTest {
         request.setStatus(ReviewStatus.HIDDEN);
         request.setReason("Contains inappropriate content");
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
+        when(userRepository.findById(9L)).thenReturn(Optional.of(User.builder().id(9L).fullName("Admin User").build()));
         when(reviewRepository.save(review)).thenReturn(review);
         when(reviewMapper.toResponse(review)).thenReturn(ReviewResponseDTO.builder()
                 .id(100L)
@@ -159,7 +165,27 @@ class ReviewServiceImplTest {
         assertThat(review.getModerationReason()).isEqualTo("Contains inappropriate content");
         assertThat(review.getModeratedBy()).isEqualTo(9L);
         assertThat(review.getModeratedAt()).isNotNull();
+        ArgumentCaptor<ReviewModerationHistory> historyCaptor = ArgumentCaptor.forClass(ReviewModerationHistory.class);
+        verify(reviewModerationHistoryRepository).save(historyCaptor.capture());
+        assertThat(historyCaptor.getValue().getFromStatus()).isEqualTo(ReviewStatus.PUBLISHED);
+        assertThat(historyCaptor.getValue().getToStatus()).isEqualTo(ReviewStatus.HIDDEN);
+        assertThat(historyCaptor.getValue().getModeratorName()).isEqualTo("Admin User");
         verify(bookRepository).save(book);
+    }
+
+    @Test
+    void moderateReview_rejectsDuplicateStatusWithoutCreatingHistory() {
+        Review review = Review.builder().id(100L).user(user).book(book).status(ReviewStatus.HIDDEN).build();
+        ReviewModerationRequestDTO request = new ReviewModerationRequestDTO();
+        request.setStatus(ReviewStatus.HIDDEN);
+        request.setReason("Repeated action");
+        when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> reviewService.moderateReview(100L, request, 9L))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("already hidden");
+
+        verify(reviewModerationHistoryRepository, never()).save(any());
     }
 
     @Test

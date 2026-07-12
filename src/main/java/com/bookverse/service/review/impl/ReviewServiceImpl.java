@@ -6,9 +6,11 @@ import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewModerationHistoryResponseDTO;
 import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
+import com.bookverse.entity.ReviewModerationHistory;
 import com.bookverse.entity.User;
 import com.bookverse.enums.UserRole;
 import com.bookverse.enums.ReviewStatus;
@@ -16,6 +18,7 @@ import com.bookverse.mapper.ReviewMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
 import com.bookverse.repository.ReviewRepository;
+import com.bookverse.repository.ReviewModerationHistoryRepository;
 import com.bookverse.repository.UserRepository;
 import com.bookverse.security.SecurityUser;
 import com.bookverse.service.review.ReviewService;
@@ -36,6 +39,7 @@ import java.util.Map;
 public class ReviewServiceImpl implements ReviewService {
 
     private final ReviewRepository reviewRepository;
+    private final ReviewModerationHistoryRepository reviewModerationHistoryRepository;
     private final BookRepository bookRepository;
     private final UserRepository userRepository;
     private final OrderItemRepository orderItemRepository;
@@ -137,18 +141,52 @@ public class ReviewServiceImpl implements ReviewService {
     ) {
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        if (review.getStatus() == request.getStatus()) {
+            throw new ConflictException("Review is already " + request.getStatus().name().toLowerCase());
+        }
         if (request.getStatus() == ReviewStatus.HIDDEN
                 && (request.getReason() == null || request.getReason().isBlank())) {
             throw new com.bookverse.common.exception.BadRequestException("A reason is required when hiding a review");
         }
 
+        User moderator = userRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Moderator not found"));
+        ReviewStatus previousStatus = review.getStatus();
+        String reason = request.getStatus() == ReviewStatus.HIDDEN ? request.getReason().trim() : null;
         review.setStatus(request.getStatus());
-        review.setModerationReason(request.getStatus() == ReviewStatus.HIDDEN ? request.getReason().trim() : null);
+        review.setModerationReason(reason);
         review.setModeratedBy(adminId);
         review.setModeratedAt(Instant.now());
         Review savedReview = reviewRepository.save(review);
+        reviewModerationHistoryRepository.save(ReviewModerationHistory.builder()
+                .reviewId(review.getId())
+                .fromStatus(previousStatus)
+                .toStatus(request.getStatus())
+                .reason(reason)
+                .moderatedBy(adminId)
+                .moderatorName(moderator.getFullName())
+                .build());
         recalculateBookRating(review.getBook());
         return reviewMapper.toResponse(savedReview);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReviewModerationHistoryResponseDTO> getModerationHistory(Long reviewId, Pageable pageable) {
+        if (!reviewRepository.existsById(reviewId)) {
+            throw new ResourceNotFoundException("Review not found");
+        }
+        return reviewModerationHistoryRepository.findByReviewId(reviewId, pageable)
+                .map(entry -> ReviewModerationHistoryResponseDTO.builder()
+                        .id(entry.getId())
+                        .reviewId(entry.getReviewId())
+                        .fromStatus(entry.getFromStatus())
+                        .toStatus(entry.getToStatus())
+                        .reason(entry.getReason())
+                        .moderatedBy(entry.getModeratedBy())
+                        .moderatorName(entry.getModeratorName())
+                        .createdAt(entry.getCreatedAt())
+                        .build());
     }
 
     @Override

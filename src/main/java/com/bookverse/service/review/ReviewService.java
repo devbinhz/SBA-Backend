@@ -3,6 +3,7 @@ package com.bookverse.service.review;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewModerationHistoryResponseDTO;
 import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.security.SecurityUser;
 import org.springframework.data.domain.Page;
@@ -24,6 +25,8 @@ public interface ReviewService {
     Page<ReviewResponseDTO> getAllReviews(ReviewStatus status, Pageable pageable);
 
     ReviewResponseDTO moderateReview(Long reviewId, ReviewModerationRequestDTO request, Long adminId);
+
+    Page<ReviewModerationHistoryResponseDTO> getModerationHistory(Long reviewId, Pageable pageable);
 
     void deleteReview(Long reviewId, SecurityUser securityUser);
 }

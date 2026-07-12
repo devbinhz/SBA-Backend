@@ -5,6 +5,7 @@ import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewModerationHistoryResponseDTO;
 import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.security.SecurityUser;
 import com.bookverse.service.review.ReviewService;
@@ -77,6 +78,15 @@ public class ReviewController {
             @AuthenticationPrincipal(expression = "user.id") Long adminId,
             @Valid @RequestBody ReviewModerationRequestDTO request) {
         return ApiResponse.success(reviewService.moderateReview(reviewId, request, adminId));
+    }
+
+    @GetMapping("/admin/reviews/{reviewId}/moderation-history")
+    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @Operation(summary = "Get review moderation history (Admin)")
+    public ApiResponse<PageResponseDTO<ReviewModerationHistoryResponseDTO>> getModerationHistory(
+            @PathVariable Long reviewId,
+            Pageable pageable) {
+        return ApiResponse.success(PageResponseDTO.from(reviewService.getModerationHistory(reviewId, pageable)));
     }
 
     @PostMapping("/reviews")
