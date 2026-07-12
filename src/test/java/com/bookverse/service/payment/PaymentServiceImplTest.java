@@ -200,6 +200,7 @@ class PaymentServiceImplTest {
                 .id(501L)
                 .order(order)
                 .status(PaymentStatus.PENDING)
+                .amount(1000L)
                 .providerOrderCode(1001001L)
                 .build();
         PaymentWebhookResult result = new PaymentWebhookResult(
@@ -207,6 +208,7 @@ class PaymentServiceImplTest {
                 "vnpay:1001001:txn-1",
                 "vnpay.payment",
                 1001001L,
+                1000L,
                 "txn-1",
                 true,
                 "00",
@@ -236,6 +238,49 @@ class PaymentServiceImplTest {
     }
 
     @Test
+    void webhookSuccessWithWrongAmountIsRejectedWithoutMarkingOrderPaid() {
+        Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_Amount", "90000");
+        Order order = Order.builder()
+                .id(1001L)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .user(User.builder().id(1L).build())
+                .total(1000L)
+                .build();
+        Payment payment = Payment.builder()
+                .id(501L)
+                .order(order)
+                .status(PaymentStatus.PENDING)
+                .amount(1000L)
+                .providerOrderCode(1001001L)
+                .build();
+        PaymentWebhookResult result = new PaymentWebhookResult(
+                true,
+                "vnpay:1001001:wrong-amount",
+                "vnpay.payment",
+                1001001L,
+                900L,
+                "wrong-amount",
+                true,
+                "00",
+                "00"
+        );
+        when(paymentGateway.verifyWebhook(any())).thenReturn(result);
+        when(paymentRepository.findByProviderOrderCode(1001001L)).thenReturn(Optional.of(payment));
+        when(paymentRepository.findWithLockById(501L)).thenReturn(Optional.of(payment));
+        when(paymentEventRepository.findByDedupeKey("vnpay:1001001:wrong-amount")).thenReturn(Optional.empty());
+        when(paymentEventRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> paymentService.handleVnpayWebhook(params))
+                .isInstanceOf(PaymentVerificationFailedException.class)
+                .hasMessageContaining("amount mismatch");
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+        verify(orderStatusHistoryRepository, never()).save(any());
+        verify(voucherService, never()).awardVoucherToUser(any(), any());
+    }
+
+    @Test
     void webhookInvalidChecksumIsSavedAndRejected() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001");
         Payment payment = Payment.builder().id(501L).providerOrderCode(1001001L).build();
@@ -244,6 +289,7 @@ class PaymentServiceImplTest {
                 "vnpay:invalid",
                 "vnpay.payment",
                 1001001L,
+                null,
                 null,
                 false,
                 null,
@@ -277,6 +323,7 @@ class PaymentServiceImplTest {
                 "vnpay:1001001:cancel",
                 "vnpay.payment",
                 1001001L,
+                null,
                 "cancel",
                 false,
                 "24",
