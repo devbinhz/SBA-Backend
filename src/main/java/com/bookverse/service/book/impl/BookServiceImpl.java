@@ -9,11 +9,13 @@ import com.bookverse.dto.request.book.StockAdjustmentRequestDTO;
 import com.bookverse.dto.request.book.UpdateBookRequestDTO;
 import com.bookverse.dto.response.book.BookResponseDTO;
 import com.bookverse.entity.Book;
+import com.bookverse.entity.BookChangeLog;
 import com.bookverse.entity.Category;
 import com.bookverse.entity.StockMovement;
 import com.bookverse.enums.StockMovementReason;
 import com.bookverse.mapper.BookMapper;
 import com.bookverse.repository.BookRepository;
+import com.bookverse.repository.BookChangeLogRepository;
 import com.bookverse.repository.CategoryRepository;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.book.BookService;
@@ -34,7 +36,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -44,6 +49,7 @@ public class BookServiceImpl implements BookService {
     private final BookRepository bookRepository;
     private final CategoryRepository categoryRepository;
     private final StockMovementRepository stockMovementRepository;
+    private final BookChangeLogRepository bookChangeLogRepository;
     private final com.bookverse.repository.UserRepository userRepository;
     private final BookMapper bookMapper;
     private final AdminRagService adminRagService;
@@ -256,9 +262,11 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional
-    public BookResponseDTO updateBook(Long id, UpdateBookRequestDTO request) {
+    public BookResponseDTO updateBook(Long id, UpdateBookRequestDTO request, Long currentUserId) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+
+        Map<String, Object> oldValues = auditableValues(book);
 
         if (request.getIsbn() != null && !request.getIsbn().isEmpty() && !request.getIsbn().equals(book.getIsbn())) {
             if (bookRepository.existsByIsbn(request.getIsbn())) {
@@ -274,6 +282,7 @@ public class BookServiceImpl implements BookService {
         book.setCategory(category);
         
         Book updatedBook = bookRepository.save(book);
+        saveBookChangeLogs(updatedBook, oldValues, auditableValues(updatedBook), currentUserId);
 
         adminRagService.upsertBookCatalog(updatedBook.getId());
         if (request.getFileKey() != null && !request.getFileKey().equals(oldFileKey)) {
@@ -285,11 +294,21 @@ public class BookServiceImpl implements BookService {
 
     @Override
     @Transactional
-    public void setBookActive(Long id, boolean active) {
+    public void setBookActive(Long id, boolean active, Long currentUserId) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+        boolean oldActive = book.isActive();
         book.setActive(active);
         bookRepository.save(book);
+        if (oldActive != active) {
+            bookChangeLogRepository.save(BookChangeLog.builder()
+                    .book(book)
+                    .fieldName("active")
+                    .oldValue(String.valueOf(oldActive))
+                    .newValue(String.valueOf(active))
+                    .changedBy(currentUserId)
+                    .build());
+        }
     }
 
     @Override
@@ -355,5 +374,85 @@ public class BookServiceImpl implements BookService {
                 movementsPage.getTotalElements(),
                 movementsPage.getTotalPages()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponseDTO<com.bookverse.dto.response.book.BookChangeLogResponseDTO> getBookChangeLogs(
+            Long bookId,
+            org.springframework.data.domain.Pageable pageable
+    ) {
+        if (!bookRepository.existsById(bookId)) {
+            throw new ResourceNotFoundException("Book not found");
+        }
+
+        org.springframework.data.domain.Page<BookChangeLog> logPage = bookChangeLogRepository.findByBookId(bookId, pageable);
+        List<com.bookverse.dto.response.book.BookChangeLogResponseDTO> content = logPage.getContent().stream()
+                .map(log -> com.bookverse.dto.response.book.BookChangeLogResponseDTO.builder()
+                        .id(log.getId())
+                        .bookId(log.getBook().getId())
+                        .fieldName(log.getFieldName())
+                        .oldValue(log.getOldValue())
+                        .newValue(log.getNewValue())
+                        .changedBy(log.getChangedBy())
+                        .changedByName(userRepository.findById(log.getChangedBy())
+                                .map(com.bookverse.entity.User::getFullName)
+                                .orElse("Unknown admin"))
+                        .createdAt(log.getCreatedAt())
+                        .build())
+                .toList();
+
+        return new PageResponseDTO<>(
+                content,
+                logPage.getNumber(),
+                logPage.getSize(),
+                logPage.getTotalElements(),
+                logPage.getTotalPages()
+        );
+    }
+
+    private Map<String, Object> auditableValues(Book book) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("title", book.getTitle());
+        values.put("author", book.getAuthor());
+        values.put("isbn", book.getIsbn());
+        values.put("publisher", book.getPublisher());
+        values.put("publicationYear", book.getPublicationYear());
+        values.put("language", book.getLanguage());
+        values.put("pages", book.getPages());
+        values.put("category", book.getCategory() == null ? null : book.getCategory().getName());
+        values.put("price", book.getPrice());
+        values.put("originalPrice", book.getOriginalPrice());
+        values.put("description", book.getDescription());
+        values.put("coverUrl", book.getCoverUrl());
+        values.put("fileKey", book.getFileKey());
+        values.put("coverKey", book.getCoverKey());
+        values.put("active", book.isActive());
+        return values;
+    }
+
+    private void saveBookChangeLogs(
+            Book book,
+            Map<String, Object> oldValues,
+            Map<String, Object> newValues,
+            Long currentUserId
+    ) {
+        List<BookChangeLog> changes = oldValues.entrySet().stream()
+                .filter(entry -> !Objects.equals(entry.getValue(), newValues.get(entry.getKey())))
+                .map(entry -> BookChangeLog.builder()
+                        .book(book)
+                        .fieldName(entry.getKey())
+                        .oldValue(toLogValue(entry.getValue()))
+                        .newValue(toLogValue(newValues.get(entry.getKey())))
+                        .changedBy(currentUserId)
+                        .build())
+                .toList();
+        if (!changes.isEmpty()) {
+            bookChangeLogRepository.saveAll(changes);
+        }
+    }
+
+    private String toLogValue(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 }
