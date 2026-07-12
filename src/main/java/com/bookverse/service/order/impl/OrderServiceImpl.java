@@ -57,7 +57,8 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public PageResponseDTO<OrderSummaryResponseDTO> listOrders(Long currentUserId, UserRole currentUserRole,
-                                                               OrderStatus status, Long userId, Pageable pageable) {
+                                                               OrderStatus status, List<OrderStatus> statuses,
+                                                               Long userId, Pageable pageable) {
         Specification<Order> spec = Specification.where(null);
         if (currentUserRole == UserRole.CUSTOMER) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("user").get("id"), currentUserId));
@@ -66,6 +67,8 @@ public class OrderServiceImpl implements OrderService {
         }
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        } else if (statuses != null && !statuses.isEmpty()) {
+            spec = spec.and((root, query, cb) -> root.get("status").in(statuses));
         }
         return PageResponseDTO.from(orderRepository.findAll(spec, pageable).map(orderMapper::toSummary));
     }

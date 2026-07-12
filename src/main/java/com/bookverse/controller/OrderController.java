@@ -36,6 +36,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
@@ -81,9 +83,10 @@ public class OrderController {
             @AuthenticationPrincipal(expression = "user.id") Long userId,
             @AuthenticationPrincipal(expression = "user.role") UserRole role,
             @RequestParam(required = false) OrderStatus status,
+            @RequestParam(required = false) List<OrderStatus> statuses,
             @RequestParam(required = false) Long customerId,
             Pageable pageable) {
-        return ApiResponse.success(orderService.listOrders(userId, role, status, customerId, pageable));
+        return ApiResponse.success(orderService.listOrders(userId, role, status, statuses, customerId, pageable));
     }
 
     @GetMapping("/{orderId}")
