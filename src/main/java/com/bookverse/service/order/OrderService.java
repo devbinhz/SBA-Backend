@@ -19,6 +19,7 @@ public interface OrderService {
             OrderStatus status,
             List<OrderStatus> statuses,
             Long userId,
+            String search,
             Pageable pageable
     );
 

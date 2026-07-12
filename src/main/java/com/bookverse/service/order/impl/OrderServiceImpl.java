@@ -37,8 +37,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -58,7 +62,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public PageResponseDTO<OrderSummaryResponseDTO> listOrders(Long currentUserId, UserRole currentUserRole,
                                                                OrderStatus status, List<OrderStatus> statuses,
-                                                               Long userId, Pageable pageable) {
+                                                               Long userId, String search, Pageable pageable) {
         Specification<Order> spec = Specification.where(null);
         if (currentUserRole == UserRole.CUSTOMER) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("user").get("id"), currentUserId));
@@ -69,6 +73,29 @@ public class OrderServiceImpl implements OrderService {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         } else if (statuses != null && !statuses.isEmpty()) {
             spec = spec.and((root, query, cb) -> root.get("status").in(statuses));
+        }
+        String normalizedSearch = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
+        if (!normalizedSearch.isEmpty()) {
+            spec = spec.and((root, query, cb) -> {
+                Subquery<Long> matchingItems = query.subquery(Long.class);
+                Root<OrderItem> item = matchingItems.from(OrderItem.class);
+                matchingItems.select(item.get("order").get("id"))
+                        .where(
+                                cb.equal(item.get("order").get("id"), root.get("id")),
+                                cb.like(cb.lower(item.get("titleSnapshot")), "%" + normalizedSearch + "%")
+                        );
+
+                Predicate titleMatch = cb.exists(matchingItems);
+                try {
+                    String orderIdText = normalizedSearch.startsWith("#")
+                            ? normalizedSearch.substring(1)
+                            : normalizedSearch;
+                    long orderId = Long.parseLong(orderIdText);
+                    return cb.or(cb.equal(root.get("id"), orderId), titleMatch);
+                } catch (NumberFormatException ignored) {
+                    return titleMatch;
+                }
+            });
         }
         return PageResponseDTO.from(orderRepository.findAll(spec, pageable).map(orderMapper::toSummary));
     }

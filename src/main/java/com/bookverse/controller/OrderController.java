@@ -85,8 +85,9 @@ public class OrderController {
             @RequestParam(required = false) OrderStatus status,
             @RequestParam(required = false) List<OrderStatus> statuses,
             @RequestParam(required = false) Long customerId,
+            @RequestParam(required = false) String search,
             Pageable pageable) {
-        return ApiResponse.success(orderService.listOrders(userId, role, status, statuses, customerId, pageable));
+        return ApiResponse.success(orderService.listOrders(userId, role, status, statuses, customerId, search, pageable));
     }
 
     @GetMapping("/{orderId}")
