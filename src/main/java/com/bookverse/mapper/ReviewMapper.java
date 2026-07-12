@@ -19,6 +19,10 @@ public class ReviewMapper {
                 .userName(review.getUser() != null ? review.getUser().getFullName() : null)
                 .rating(review.getRating())
                 .comment(review.getComment())
+                .status(review.getStatus())
+                .moderationReason(review.getModerationReason())
+                .moderatedBy(review.getModeratedBy())
+                .moderatedAt(review.getModeratedAt())
                 .createdAt(review.getCreatedAt())
                 .updatedAt(review.getUpdatedAt())
                 .build();

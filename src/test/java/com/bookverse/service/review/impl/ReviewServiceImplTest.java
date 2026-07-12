@@ -3,11 +3,13 @@ package com.bookverse.service.review.impl;
 import com.bookverse.common.exception.ConflictException;
 import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
+import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
 import com.bookverse.entity.User;
 import com.bookverse.mapper.ReviewMapper;
+import com.bookverse.enums.ReviewStatus;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
 import com.bookverse.repository.ReviewRepository;
@@ -76,8 +78,8 @@ class ReviewServiceImplTest {
             r.setId(100L);
             return r;
         });
-        when(reviewRepository.getAverageRatingByBookId(10L)).thenReturn(5.0);
-        when(reviewRepository.countByBookId(10L)).thenReturn(1);
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(5.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(1);
 
         ReviewResponseDTO mockResponse = ReviewResponseDTO.builder().id(100L).rating(5).build();
         when(reviewMapper.toResponse(any(Review.class))).thenReturn(mockResponse);
@@ -121,12 +123,41 @@ class ReviewServiceImplTest {
     void deleteReview_byOwner_success() {
         Review review = Review.builder().id(100L).user(user).book(book).build();
         when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
-        when(reviewRepository.getAverageRatingByBookId(10L)).thenReturn(0.0);
-        when(reviewRepository.countByBookId(10L)).thenReturn(0);
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(0.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(0);
 
         reviewService.deleteReview(100L, securityUser);
 
         verify(reviewRepository).delete(review);
+        verify(bookRepository).save(book);
+    }
+
+    @Test
+    void moderateReview_hidesReviewAndRecalculatesPublishedRating() {
+        Review review = Review.builder()
+                .id(100L)
+                .user(user)
+                .book(book)
+                .status(ReviewStatus.PUBLISHED)
+                .build();
+        ReviewModerationRequestDTO request = new ReviewModerationRequestDTO();
+        request.setStatus(ReviewStatus.HIDDEN);
+        request.setReason("Contains inappropriate content");
+        when(reviewRepository.findById(100L)).thenReturn(Optional.of(review));
+        when(reviewRepository.save(review)).thenReturn(review);
+        when(reviewMapper.toResponse(review)).thenReturn(ReviewResponseDTO.builder()
+                .id(100L)
+                .status(ReviewStatus.HIDDEN)
+                .build());
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(0.0);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(0);
+
+        ReviewResponseDTO response = reviewService.moderateReview(100L, request, 9L);
+
+        assertThat(response.getStatus()).isEqualTo(ReviewStatus.HIDDEN);
+        assertThat(review.getModerationReason()).isEqualTo("Contains inappropriate content");
+        assertThat(review.getModeratedBy()).isEqualTo(9L);
+        assertThat(review.getModeratedAt()).isNotNull();
         verify(bookRepository).save(book);
     }
 }

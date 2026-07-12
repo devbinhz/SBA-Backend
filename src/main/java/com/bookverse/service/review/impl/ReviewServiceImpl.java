@@ -4,11 +4,13 @@ import com.bookverse.common.exception.ConflictException;
 import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
+import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
 import com.bookverse.entity.User;
 import com.bookverse.enums.UserRole;
+import com.bookverse.enums.ReviewStatus;
 import com.bookverse.mapper.ReviewMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
@@ -23,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +68,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .user(user)
                 .rating(requestDTO.getRating())
                 .comment(requestDTO.getComment())
+                .status(ReviewStatus.PUBLISHED)
                 .build();
 
         Review savedReview = reviewRepository.save(review);
@@ -78,15 +83,51 @@ public class ReviewServiceImpl implements ReviewService {
         if (!bookRepository.existsById(bookId)) {
             throw new ResourceNotFoundException("Book not found");
         }
-        return reviewRepository.findByBookId(bookId, pageable)
+        return reviewRepository.findByBookIdAndStatus(bookId, ReviewStatus.PUBLISHED, pageable)
                 .map(reviewMapper::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReviewResponseDTO> getAllReviews(Pageable pageable) {
-        return reviewRepository.findAll(pageable)
+    public Optional<ReviewResponseDTO> getMyReviewForBook(Long bookId, Long userId) {
+        if (!bookRepository.existsById(bookId)) {
+            throw new ResourceNotFoundException("Book not found");
+        }
+        return reviewRepository.findByBookIdAndUserId(bookId, userId)
                 .map(reviewMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReviewResponseDTO> getAllReviews(ReviewStatus status, Pageable pageable) {
+        Page<Review> reviews = status == null
+                ? reviewRepository.findAll(pageable)
+                : reviewRepository.findByStatus(status, pageable);
+        return reviews
+                .map(reviewMapper::toResponse);
+    }
+
+    @Override
+    @Transactional
+    public ReviewResponseDTO moderateReview(
+            Long reviewId,
+            ReviewModerationRequestDTO request,
+            Long adminId
+    ) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Review not found"));
+        if (request.getStatus() == ReviewStatus.HIDDEN
+                && (request.getReason() == null || request.getReason().isBlank())) {
+            throw new com.bookverse.common.exception.BadRequestException("A reason is required when hiding a review");
+        }
+
+        review.setStatus(request.getStatus());
+        review.setModerationReason(request.getStatus() == ReviewStatus.HIDDEN ? request.getReason().trim() : null);
+        review.setModeratedBy(adminId);
+        review.setModeratedAt(Instant.now());
+        Review savedReview = reviewRepository.save(review);
+        recalculateBookRating(review.getBook());
+        return reviewMapper.toResponse(savedReview);
     }
 
     @Override
@@ -108,8 +149,8 @@ public class ReviewServiceImpl implements ReviewService {
     }
 
     private void recalculateBookRating(Book book) {
-        Double avg = reviewRepository.getAverageRatingByBookId(book.getId());
-        int count = reviewRepository.countByBookId(book.getId());
+        Double avg = reviewRepository.getPublishedAverageRatingByBookId(book.getId());
+        int count = reviewRepository.countByBookIdAndStatus(book.getId(), ReviewStatus.PUBLISHED);
 
         book.setRatingAvg(BigDecimal.valueOf(avg != null ? avg : 0.0));
         book.setReviewCount(count);

@@ -1,5 +1,6 @@
 package com.bookverse.dto.response.review;
 
+import com.bookverse.enums.ReviewStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,6 +20,10 @@ public class ReviewResponseDTO {
     private String userName;
     private Integer rating;
     private String comment;
+    private ReviewStatus status;
+    private String moderationReason;
+    private Long moderatedBy;
+    private Instant moderatedAt;
     private Instant createdAt;
     private Instant updatedAt;
 }
