@@ -1,5 +1,6 @@
 package com.bookverse.dto.request.checkout;
 
+import com.bookverse.enums.DeliveryType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Data;
@@ -16,4 +17,7 @@ public class CheckoutRequestDTO {
     private List<@NotNull(message = "Cart item id is required") Long> cartItemIds;
 
     private Long userVoucherId;
+
+    @NotNull(message = "Delivery type is required")
+    private DeliveryType deliveryType = DeliveryType.SELF;
 }

@@ -1,5 +1,6 @@
 package com.bookverse.entity;
 
+import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentProvider;
 import jakarta.persistence.Column;
@@ -51,6 +52,16 @@ public class Order extends BaseEntity {
 
     @Column(name = "shipping_fee", nullable = false)
     private Long shippingFee;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_type", nullable = false, length = 20,
+            columnDefinition = "varchar(20) default 'SELF'")
+    @Default
+    private DeliveryType deliveryType = DeliveryType.SELF;
+
+    @Column(name = "gift_wrap_fee", nullable = false, columnDefinition = "bigint default 0")
+    @Default
+    private Long giftWrapFee = 0L;
 
     @Column(name = "discount_amount", nullable = false)
     @Default

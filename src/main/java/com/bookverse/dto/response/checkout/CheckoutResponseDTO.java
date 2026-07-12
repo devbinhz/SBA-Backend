@@ -1,5 +1,6 @@
 package com.bookverse.dto.response.checkout;
 
+import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentStatus;
 import lombok.AllArgsConstructor;
@@ -22,6 +23,8 @@ public class CheckoutResponseDTO {
     private PaymentStatus paymentStatus;
     private Long subtotal;
     private Long shippingFee;
+    private DeliveryType deliveryType;
+    private Long giftWrapFee;
     private Long discountAmount;
     private Long total;
     private Long providerOrderCode;

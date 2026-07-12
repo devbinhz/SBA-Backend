@@ -1,5 +1,6 @@
 package com.bookverse.dto.response.order;
 
+import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentProvider;
 import lombok.AllArgsConstructor;
@@ -21,6 +22,9 @@ public class OrderResponseDTO {
     private OrderStatus status;
     private Long subtotal;
     private Long shippingFee;
+    private DeliveryType deliveryType;
+    private Long giftWrapFee;
+    private Long discountAmount;
     private Long total;
     private Object addressSnapshot;
     private PaymentProvider paymentMethod;

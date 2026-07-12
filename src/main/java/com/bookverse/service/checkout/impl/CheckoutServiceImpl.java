@@ -42,6 +42,7 @@ import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.entity.UserVoucher;
 import com.bookverse.enums.VoucherStatus;
 import com.bookverse.enums.DiscountType;
+import com.bookverse.enums.DeliveryType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -83,7 +84,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         List<CheckoutLine> lines = validateAndPrice(cartItems);
         long subtotal = subtotal(lines);
         long discountAmount = calculateDiscount(user.getId(), request.getUserVoucherId(), subtotal);
-        return toPreview(lines, discountAmount);
+        return toPreview(lines, discountAmount, request.getDeliveryType());
     }
 
     @Override
@@ -124,7 +125,9 @@ public class CheckoutServiceImpl implements CheckoutService {
         }
 
         long shippingFee = orderProperties.shippingFeeVnd();
-        long total = Math.max(0L, subtotal - discountAmount + shippingFee);
+        DeliveryType deliveryType = request.getDeliveryType();
+        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        long total = Math.max(0L, subtotal - discountAmount + shippingFee + giftWrapFee);
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
         Order order = Order.builder()
@@ -132,6 +135,8 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .status(OrderStatus.PENDING_PAYMENT)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
+                .deliveryType(deliveryType)
+                .giftWrapFee(giftWrapFee)
                 .discountAmount(discountAmount)
                 .userVoucher(userVoucher)
                 .total(total)
@@ -298,13 +303,20 @@ public class CheckoutServiceImpl implements CheckoutService {
         stockMovementRepository.saveAll(movements);
     }
 
-    private CheckoutPreviewResponseDTO toPreview(List<CheckoutLine> lines, long discountAmount) {
+    private CheckoutPreviewResponseDTO toPreview(
+            List<CheckoutLine> lines,
+            long discountAmount,
+            DeliveryType deliveryType
+    ) {
         long subtotal = subtotal(lines);
         long shippingFee = orderProperties.shippingFeeVnd();
-        long total = Math.max(0L, subtotal - discountAmount + shippingFee);
+        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        long total = Math.max(0L, subtotal - discountAmount + shippingFee + giftWrapFee);
         return CheckoutPreviewResponseDTO.builder()
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
+                .deliveryType(deliveryType)
+                .giftWrapFee(giftWrapFee)
                 .discountAmount(discountAmount)
                 .total(total)
                 .items(lines.stream().map(this::toItemResponse).toList())
@@ -326,6 +338,8 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .paymentStatus(payment.getStatus())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
+                .deliveryType(order.getDeliveryType())
+                .giftWrapFee(order.getGiftWrapFee())
                 .discountAmount(order.getDiscountAmount())
                 .total(order.getTotal())
                 .providerOrderCode(payment.getProviderOrderCode())
