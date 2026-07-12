@@ -6,6 +6,7 @@ import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Review;
 import com.bookverse.entity.User;
@@ -27,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -95,6 +98,24 @@ public class ReviewServiceImpl implements ReviewService {
         }
         return reviewRepository.findByBookIdAndUserId(bookId, userId)
                 .map(reviewMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReviewSummaryResponseDTO getReviewSummary(Long bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+        Map<Integer, Long> ratingCounts = new LinkedHashMap<>();
+        for (int rating = 5; rating >= 1; rating--) {
+            ratingCounts.put(rating, 0L);
+        }
+        reviewRepository.countPublishedReviewsByRating(bookId)
+                .forEach(row -> ratingCounts.put(row.getRating(), row.getCount()));
+        return ReviewSummaryResponseDTO.builder()
+                .averageRating(book.getRatingAvg())
+                .totalReviews(book.getReviewCount())
+                .ratingCounts(ratingCounts)
+                .build();
     }
 
     @Override

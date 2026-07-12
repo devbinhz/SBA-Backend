@@ -5,6 +5,7 @@ import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.review.ReviewRequestDTO;
 import com.bookverse.dto.request.review.ReviewModerationRequestDTO;
 import com.bookverse.dto.response.review.ReviewResponseDTO;
+import com.bookverse.dto.response.review.ReviewSummaryResponseDTO;
 import com.bookverse.security.SecurityUser;
 import com.bookverse.service.review.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +43,12 @@ public class ReviewController {
             @PathVariable Long bookId,
             Pageable pageable) {
         return ApiResponse.success(PageResponseDTO.from(reviewService.getReviewsByBook(bookId, pageable)));
+    }
+
+    @GetMapping("/books/{bookId}/reviews/summary")
+    @Operation(summary = "Get published review rating breakdown for a book (Public)")
+    public ApiResponse<ReviewSummaryResponseDTO> getReviewSummary(@PathVariable Long bookId) {
+        return ApiResponse.success(reviewService.getReviewSummary(bookId));
     }
 
     @GetMapping("/books/{bookId}/reviews/me")

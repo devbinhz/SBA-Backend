@@ -12,6 +12,11 @@ import java.util.Optional;
 
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
+    interface RatingCountProjection {
+        Integer getRating();
+        Long getCount();
+    }
+
     boolean existsByBookIdAndUserId(Long bookId, Long userId);
 
     Optional<Review> findByBookIdAndUserId(Long bookId, Long userId);
@@ -24,4 +29,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Double getPublishedAverageRatingByBookId(@Param("bookId") Long bookId);
 
     int countByBookIdAndStatus(Long bookId, ReviewStatus status);
+
+    @Query("SELECT r.rating AS rating, COUNT(r) AS count FROM Review r "
+            + "WHERE r.book.id = :bookId AND r.status = com.bookverse.enums.ReviewStatus.PUBLISHED "
+            + "GROUP BY r.rating ORDER BY r.rating DESC")
+    java.util.List<RatingCountProjection> countPublishedReviewsByRating(@Param("bookId") Long bookId);
 }

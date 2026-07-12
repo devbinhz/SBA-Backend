@@ -27,6 +27,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -159,5 +160,31 @@ class ReviewServiceImplTest {
         assertThat(review.getModeratedBy()).isEqualTo(9L);
         assertThat(review.getModeratedAt()).isNotNull();
         verify(bookRepository).save(book);
+    }
+
+    @Test
+    void getReviewSummaryReturnsCountsForEveryRating() {
+        book.setRatingAvg(BigDecimal.valueOf(4.5));
+        book.setReviewCount(3);
+        ReviewRepository.RatingCountProjection fiveStars = mock(ReviewRepository.RatingCountProjection.class);
+        ReviewRepository.RatingCountProjection fourStars = mock(ReviewRepository.RatingCountProjection.class);
+        when(fiveStars.getRating()).thenReturn(5);
+        when(fiveStars.getCount()).thenReturn(2L);
+        when(fourStars.getRating()).thenReturn(4);
+        when(fourStars.getCount()).thenReturn(1L);
+        when(bookRepository.findById(10L)).thenReturn(Optional.of(book));
+        when(reviewRepository.countPublishedReviewsByRating(10L)).thenReturn(List.of(fiveStars, fourStars));
+
+        var summary = reviewService.getReviewSummary(10L);
+
+        assertThat(summary.getAverageRating()).isEqualByComparingTo("4.5");
+        assertThat(summary.getTotalReviews()).isEqualTo(3);
+        assertThat(summary.getRatingCounts()).containsAllEntriesOf(Map.of(
+                5, 2L,
+                4, 1L,
+                3, 0L,
+                2, 0L,
+                1, 0L
+        ));
     }
 }
