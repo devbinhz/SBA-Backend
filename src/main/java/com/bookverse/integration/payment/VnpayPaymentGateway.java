@@ -67,6 +67,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
                 dedupeKey(params, secureHash),
                 "vnpay.payment",
                 providerOrderCode,
+                parseAmount(params.get("vnp_Amount")),
                 transactionId,
                 success,
                 responseCode,
@@ -80,6 +81,7 @@ public class VnpayPaymentGateway implements PaymentGateway {
                 dedupeKey(params, ""),
                 "vnpay.payment",
                 parseProviderOrderCode(params.get("vnp_TxnRef")),
+                parseAmount(params.get("vnp_Amount")),
                 params.get("vnp_TransactionNo"),
                 false,
                 params.get("vnp_ResponseCode"),
@@ -95,6 +97,21 @@ public class VnpayPaymentGateway implements PaymentGateway {
             return Long.parseLong(raw);
         } catch (NumberFormatException exception) {
             throw new BadRequestException("Invalid VNPAY transaction reference");
+        }
+    }
+
+    private Long parseAmount(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            long minorUnits = Long.parseLong(raw);
+            if (minorUnits < 0 || minorUnits % 100 != 0) {
+                throw new BadRequestException("Invalid VNPAY amount");
+            }
+            return minorUnits / 100;
+        } catch (NumberFormatException exception) {
+            throw new BadRequestException("Invalid VNPAY amount");
         }
     }
 

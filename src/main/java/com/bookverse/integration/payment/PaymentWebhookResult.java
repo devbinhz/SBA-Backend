@@ -5,6 +5,7 @@ public record PaymentWebhookResult(
         String dedupeKey,
         String eventType,
         Long providerOrderCode,
+        Long amount,
         String transactionId,
         boolean success,
         String responseCode,

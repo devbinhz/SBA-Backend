@@ -44,6 +44,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -156,6 +157,11 @@ public class PaymentServiceImpl implements PaymentService {
         Order order = lockedPayment.getOrder();
 
         if (result.success()) {
+            if (!Objects.equals(lockedPayment.getAmount(), result.amount())) {
+                event.setProcessingError("VNPAY amount does not match the expected payment amount");
+                paymentEventRepository.save(event);
+                throw new PaymentVerificationFailedException("VNPAY payment amount mismatch");
+            }
             processSuccessfulPayment(lockedPayment, order, result, event);
         } else {
             processFailedOrCancelledPayment(lockedPayment, order, event, result);
