@@ -38,14 +38,6 @@ public class CartController {
         return ResponseEntity.ok(ApiResponse.success(cartService.addCartItem(userId, requestDTO)));
     }
 
-    @PostMapping("/merge")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Merge a local guest cart into the current customer cart")
-    public ResponseEntity<ApiResponse<CartResponseDTO>> mergeCart(
-            @AuthenticationPrincipal(expression = "user.id") Long userId,
-            @Valid @RequestBody CartMergeRequestDTO requestDTO) {
-        return ResponseEntity.ok(ApiResponse.success(cartService.mergeCart(userId, requestDTO)));
-    }
 
     @PutMapping("/items/{itemId}")
     @PreAuthorize("hasRole('CUSTOMER')")
