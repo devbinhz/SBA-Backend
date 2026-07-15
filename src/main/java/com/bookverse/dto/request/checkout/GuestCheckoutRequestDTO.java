@@ -1,9 +1,11 @@
 package com.bookverse.dto.request.checkout;
 
+import com.bookverse.enums.DeliveryType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
@@ -33,4 +35,7 @@ public class GuestCheckoutRequestDTO {
     @NotEmpty(message = "Cart items cannot be empty")
     @Valid
     private List<GuestCartItemDTO> items;
+
+    @NotNull(message = "Delivery type is required")
+    private DeliveryType deliveryType = DeliveryType.SELF;
 }

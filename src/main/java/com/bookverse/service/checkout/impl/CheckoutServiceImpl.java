@@ -94,7 +94,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     public CheckoutPreviewResponseDTO previewGuest(GuestCheckoutRequestDTO request) {
         List<CheckoutLine> lines = validateAndPriceDTO(request.getItems());
         long subtotal = subtotal(lines);
-        return toPreview(lines, 0L);
+        return toPreview(lines, 0L, request.getDeliveryType());
     }
 
     @Override
@@ -205,7 +205,9 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         long subtotal = subtotal(lines);
         long shippingFee = orderProperties.shippingFeeVnd();
-        long total = Math.max(0L, subtotal + shippingFee); // No discount for guests
+        DeliveryType deliveryType = request.getDeliveryType();
+        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        long total = Math.max(0L, subtotal + shippingFee + giftWrapFee); // No discount for guests
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
         Order order = Order.builder()
@@ -214,6 +216,8 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .status(OrderStatus.PENDING_PAYMENT)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
+                .deliveryType(deliveryType)
+                .giftWrapFee(giftWrapFee)
                 .discountAmount(0L)
                 .userVoucher(null)
                 .total(total)
