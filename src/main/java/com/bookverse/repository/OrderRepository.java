@@ -20,6 +20,8 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
 
+    Optional<Order> findByGuestEmailAndIdempotencyKey(String guestEmail, String idempotencyKey);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from Order o where o.id = :id")
     Optional<Order> findWithLockById(@Param("id") Long id);

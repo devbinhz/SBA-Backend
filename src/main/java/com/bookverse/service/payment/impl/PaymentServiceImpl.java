@@ -5,6 +5,7 @@ import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.PaymentVerificationFailedException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
+import com.bookverse.dto.request.checkout.GuestCheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
 import com.bookverse.dto.response.payment.PendingPaymentLinkResponseDTO;
 import com.bookverse.dto.response.payment.PaymentWebhookResponseDTO;
@@ -124,6 +125,39 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request, String clientIp) {
+        CheckoutResponseDTO response = checkoutService.checkoutGuest(idempotencyKey, request);
+        if (response.getCheckoutUrl() != null || response.getPaymentStatus() != PaymentStatus.PENDING) {
+            return response;
+        }
+
+        try {
+            var link = paymentGateway.createCheckoutLink(new PaymentLinkCommand(
+                    response.getPaymentId(),
+                    response.getProviderOrderCode(),
+                    response.getTotal(),
+                    "BookVerse guest order " + response.getOrderId(),
+                    response.getExpiresAt(),
+                    clientIp
+            ));
+            transactionTemplate.executeWithoutResult(status -> {
+                Payment payment = paymentRepository.findWithLockById(response.getPaymentId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
+                if (payment.getStatus() == PaymentStatus.PENDING) {
+                    payment.setProviderPaymentLinkId(link.providerPaymentLinkId());
+                    payment.setCheckoutUrl(link.checkoutUrl());
+                    paymentRepository.save(payment);
+                }
+            });
+            response.setCheckoutUrl(link.checkoutUrl());
+            return response;
+        } catch (RuntimeException exception) {
+            compensateCreateLinkFailure(response.getPaymentId(), exception);
+            throw new ConflictException("Unable to create VNPAY checkout link");
+        }
+    }
+
+    @Override
     public PaymentWebhookResponseDTO handleVnpayWebhook(Map<String, String> params) {
         PaymentWebhookResult result = paymentGateway.verifyWebhook(new PaymentWebhookCommand(params));
         return transactionTemplate.execute(status -> processWebhook(params, result));
@@ -230,7 +264,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .build());
         
         // Award voucher
-        voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
+        if (order.getUser() != null) {
+            voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
+        }
     }
 
     private void processFailedOrCancelledPayment(Payment payment, Order order, PaymentEvent event, PaymentWebhookResult result) {

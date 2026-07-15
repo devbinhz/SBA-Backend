@@ -38,9 +38,12 @@ public class Order extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
+
+    @Column(name = "guest_email")
+    private String guestEmail;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
