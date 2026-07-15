@@ -1,9 +1,11 @@
 package com.bookverse.service.cart.impl;
 
 import com.bookverse.common.exception.BookInactiveException;
+import com.bookverse.common.exception.BadRequestException;
 import com.bookverse.common.exception.OutOfStockException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.cart.CartItemRequestDTO;
+import com.bookverse.dto.request.cart.CartMergeRequestDTO;
 import com.bookverse.dto.response.cart.CartResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Cart;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -50,37 +54,23 @@ public class CartServiceImpl implements CartService {
     @Transactional
     public CartResponseDTO addCartItem(Long userId, CartItemRequestDTO requestDTO) {
         Cart cart = getOrCreateCart(userId);
-
-        Book book = bookRepository.findById(requestDTO.getBookId())
-                .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
-
-        if (!book.isActive() || !book.getCategory().isActive()) {
-            throw new BookInactiveException("Book is inactive or category is inactive");
-        }
-
-        Optional<CartItem> existingItemOpt = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
-
-        CartItem item;
-        if (existingItemOpt.isPresent()) {
-            item = existingItemOpt.get();
-            int newQuantity = item.getQuantity() + requestDTO.getQuantity();
-            if (newQuantity > book.getStock()) {
-                throw new OutOfStockException("Not enough stock available");
-            }
-            item.setQuantity(newQuantity);
-        } else {
-            if (requestDTO.getQuantity() > book.getStock()) {
-                throw new OutOfStockException("Not enough stock available");
-            }
-            item = CartItem.builder()
-                    .cart(cart)
-                    .book(book)
-                    .quantity(requestDTO.getQuantity())
-                    .build();
-            cart.addItem(item);
-        }
-
+        mergeItem(cart, requestDTO);
         cartRepository.save(cart); // Cascade save/update
+        return cartMapper.toCartResponseDTO(cart);
+    }
+
+    @Override
+    @Transactional
+    public CartResponseDTO mergeCart(Long userId, CartMergeRequestDTO requestDTO) {
+        Cart cart = getOrCreateCart(userId);
+        Set<Long> mergedBookIds = new HashSet<>();
+        for (CartItemRequestDTO item : requestDTO.getItems()) {
+            if (!mergedBookIds.add(item.getBookId())) {
+                throw new BadRequestException("Duplicate book in cart merge request");
+            }
+            mergeItem(cart, item);
+        }
+        cartRepository.save(cart);
         return cartMapper.toCartResponseDTO(cart);
     }
 
@@ -164,5 +154,33 @@ public class CartServiceImpl implements CartService {
                     .build();
             return cartRepository.save(newCart);
         });
+    }
+
+    private void mergeItem(Cart cart, CartItemRequestDTO requestDTO) {
+        Book book = bookRepository.findById(requestDTO.getBookId())
+                .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+
+        if (!book.isActive() || !book.getCategory().isActive()) {
+            throw new BookInactiveException("Book is inactive or category is inactive");
+        }
+
+        Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
+        if (existingItem.isPresent()) {
+            int newQuantity = existingItem.get().getQuantity() + requestDTO.getQuantity();
+            if (newQuantity > book.getStock()) {
+                throw new OutOfStockException("Not enough stock available");
+            }
+            existingItem.get().setQuantity(newQuantity);
+            return;
+        }
+
+        if (requestDTO.getQuantity() > book.getStock()) {
+            throw new OutOfStockException("Not enough stock available");
+        }
+        cart.addItem(CartItem.builder()
+                .cart(cart)
+                .book(book)
+                .quantity(requestDTO.getQuantity())
+                .build());
     }
 }

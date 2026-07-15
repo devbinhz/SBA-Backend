@@ -2,6 +2,7 @@ package com.bookverse.controller;
 
 import com.bookverse.common.dto.ApiResponse;
 import com.bookverse.dto.request.cart.CartItemRequestDTO;
+import com.bookverse.dto.request.cart.CartMergeRequestDTO;
 import com.bookverse.dto.response.cart.CartResponseDTO;
 import com.bookverse.service.cart.CartService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +36,15 @@ public class CartController {
             @AuthenticationPrincipal(expression = "user.id") Long userId,
             @Valid @RequestBody CartItemRequestDTO requestDTO) {
         return ResponseEntity.ok(ApiResponse.success(cartService.addCartItem(userId, requestDTO)));
+    }
+
+    @PostMapping("/merge")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Merge a local guest cart into the current customer cart")
+    public ResponseEntity<ApiResponse<CartResponseDTO>> mergeCart(
+            @AuthenticationPrincipal(expression = "user.id") Long userId,
+            @Valid @RequestBody CartMergeRequestDTO requestDTO) {
+        return ResponseEntity.ok(ApiResponse.success(cartService.mergeCart(userId, requestDTO)));
     }
 
     @PutMapping("/items/{itemId}")
