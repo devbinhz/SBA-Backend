@@ -24,6 +24,7 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagCatalogSearchRequest;
 import com.bookverse.integration.rag.dto.RagCatalogSearchResponse;
 import com.bookverse.integration.rag.dto.RagCatalogBookHit;
+import jakarta.persistence.criteria.Expression;
 import jakarta.persistence.criteria.Predicate;
 import java.util.Comparator;
 import lombok.RequiredArgsConstructor;
@@ -92,14 +93,28 @@ public class BookServiceImpl implements BookService {
             predicates.add(cb.isTrue(root.join("category").get("active")));
 
             if (query != null && !query.trim().isEmpty()) {
+                String likePattern = "%" + query.trim().toLowerCase() + "%";
+                Predicate titleLike = cb.like(cb.lower(root.get("title")), likePattern);
+                Predicate authorLike = cb.like(cb.lower(root.get("author")), likePattern);
+                Predicate isbnLike = cb.like(cb.lower(root.get("isbn")), likePattern);
+                Predicate exactMatch = cb.or(titleLike, authorLike, isbnLike);
+
                 if (finalUseSemanticSearch) {
-                    predicates.add(root.get("id").in(finalSemanticBookIds));
+                    Predicate semanticMatch = root.get("id").in(finalSemanticBookIds);
+                    predicates.add(cb.or(exactMatch, semanticMatch));
                 } else {
-                    String likePattern = "%" + query.trim().toLowerCase() + "%";
-                    Predicate titleLike = cb.like(cb.lower(root.get("title")), likePattern);
-                    Predicate authorLike = cb.like(cb.lower(root.get("author")), likePattern);
-                    Predicate isbnLike = cb.like(cb.lower(root.get("isbn")), likePattern);
-                    predicates.add(cb.or(titleLike, authorLike, isbnLike));
+                    predicates.add(exactMatch);
+                }
+
+                // Add Relevance Ordering (Exact matches first)
+                if (("relevance".equalsIgnoreCase(sortParam) || sortParam == null || sortParam.trim().isEmpty()) 
+                        && cq.getResultType() != Long.class && cq.getResultType() != long.class) {
+                    Expression<?> relevanceExpr = cb.selectCase()
+                            .when(titleLike, 4)
+                            .when(authorLike, 3)
+                            .when(isbnLike, 2)
+                            .otherwise(1);
+                    cq.orderBy(cb.desc(relevanceExpr));
                 }
             }
 
@@ -133,11 +148,16 @@ public class BookServiceImpl implements BookService {
             sort = Sort.by(Sort.Direction.DESC, "ratingAvg");
         } else if ("sold_desc".equalsIgnoreCase(sortParam)) {
             sort = Sort.by(Sort.Direction.DESC, "soldCount");
+        } else if ("title_asc".equalsIgnoreCase(sortParam) || ("relevance".equalsIgnoreCase(sortParam) && (query == null || query.trim().isEmpty()))) {
+            sort = Sort.by(Sort.Direction.ASC, "title");
+        } else if ("title_desc".equalsIgnoreCase(sortParam)) {
+            sort = Sort.by(Sort.Direction.DESC, "title");
         } else if (sortParam != null && !sortParam.trim().isEmpty()) {
              // Fallback for default spring data sort if it passes directly
         }
 
-        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort.isSorted() ? sort : pageable.getSort());
+        Sort finalSort = sort.isSorted() ? sort : ("relevance".equalsIgnoreCase(sortParam) ? Sort.unsorted() : pageable.getSort());
+        Pageable sortedPageable = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), finalSort);
         
         Page<Book> bookPage = bookRepository.findAll(spec, sortedPageable);
         
