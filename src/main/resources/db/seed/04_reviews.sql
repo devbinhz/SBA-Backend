@@ -11,6 +11,17 @@ ON CONFLICT (book_id, user_id) DO NOTHING;
 
 INSERT INTO reviews (book_id, user_id, rating, comment, created_at, updated_at)
 VALUES (
+    (SELECT id FROM books WHERE isbn = '9781883629007'),
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    5,
+    'A practical collection of techniques that works well for team workshops.',
+    now(),
+    now()
+)
+ON CONFLICT (book_id, user_id) DO NOTHING;
+
+INSERT INTO reviews (book_id, user_id, rating, comment, created_at, updated_at)
+VALUES (
     (SELECT id FROM books WHERE isbn = '9781098166304'),
     (SELECT id FROM users WHERE email = 'customer@bookverse.local'),
     5,
@@ -107,3 +118,29 @@ VALUES (
     now()
 )
 ON CONFLICT (book_id, user_id) DO NOTHING;
+
+-- Keep catalog aggregates derived from published reviews instead of hard-coded book values.
+UPDATE books b
+SET rating_avg = review_stats.average_rating,
+    review_count = review_stats.review_count,
+    updated_at = now()
+FROM (
+    SELECT book_id,
+           ROUND(AVG(rating)::numeric, 2) AS average_rating,
+           COUNT(*)::integer AS review_count
+    FROM reviews
+    WHERE status = 'PUBLISHED'
+    GROUP BY book_id
+) review_stats
+WHERE b.id = review_stats.book_id;
+
+UPDATE books b
+SET rating_avg = 0,
+    review_count = 0,
+    updated_at = now()
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM reviews r
+    WHERE r.book_id = b.id
+      AND r.status = 'PUBLISHED'
+);
