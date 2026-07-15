@@ -72,4 +72,13 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartResponseDTO>> clearCart(@AuthenticationPrincipal(expression = "user.id") Long userId) {
         return ResponseEntity.ok(ApiResponse.success(cartService.clearCart(userId)));
     }
+
+    @PostMapping("/merge")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    @Operation(summary = "Merge guest cart with user cart")
+    public ResponseEntity<ApiResponse<CartResponseDTO>> mergeCart(
+            @AuthenticationPrincipal(expression = "user.id") Long userId,
+            @Valid @RequestBody CartMergeRequestDTO requestDTO) {
+        return ResponseEntity.ok(ApiResponse.success(cartService.mergeCart(userId, requestDTO)));
+    }
 }

@@ -12,6 +12,7 @@ public interface CartService {
     CartResponseDTO updateCartItem(Long userId, Long itemId, CartItemRequestDTO requestDTO);
     CartResponseDTO deleteCartItem(Long userId, Long itemId);
     CartResponseDTO clearCart(Long userId);
+    CartResponseDTO mergeCart(Long userId, CartMergeRequestDTO request);
     
     Cart getCartByUserId(Long userId);
     void clearCartByUserId(Long userId);

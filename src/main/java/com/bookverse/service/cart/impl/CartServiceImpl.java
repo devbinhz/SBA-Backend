@@ -6,6 +6,7 @@ import com.bookverse.common.exception.OutOfStockException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.dto.request.cart.CartItemRequestDTO;
 import com.bookverse.dto.request.cart.CartMergeRequestDTO;
+
 import com.bookverse.dto.response.cart.CartResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Cart;
@@ -59,20 +60,7 @@ public class CartServiceImpl implements CartService {
         return cartMapper.toCartResponseDTO(cart);
     }
 
-    @Override
-    @Transactional
-    public CartResponseDTO mergeCart(Long userId, CartMergeRequestDTO requestDTO) {
-        Cart cart = getOrCreateCart(userId);
-        Set<Long> mergedBookIds = new HashSet<>();
-        for (CartItemRequestDTO item : requestDTO.getItems()) {
-            if (!mergedBookIds.add(item.getBookId())) {
-                throw new BadRequestException("Duplicate book in cart merge request");
-            }
-            mergeItem(cart, item);
-        }
-        cartRepository.save(cart);
-        return cartMapper.toCartResponseDTO(cart);
-    }
+
 
     @Override
     @Transactional
@@ -128,6 +116,47 @@ public class CartServiceImpl implements CartService {
         cart.getItems().clear();
         cartItemRepository.deleteAllByCartId(cart.getId());
         
+        return cartMapper.toCartResponseDTO(cart);
+    }
+
+    @Override
+    @Transactional
+    public CartResponseDTO mergeCart(Long userId, CartMergeRequestDTO request) {
+        Cart cart = getOrCreateCart(userId);
+
+        for (CartItemRequestDTO guestItem : request.getItems()) {
+            Book book = bookRepository.findById(guestItem.getBookId()).orElse(null);
+            if (book == null || !book.isActive() || !book.getCategory().isActive()) {
+                continue; // Skip invalid or inactive books
+            }
+
+            Optional<CartItem> existingItemOpt = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
+
+            if (existingItemOpt.isPresent()) {
+                CartItem item = existingItemOpt.get();
+                int newQuantity = item.getQuantity() + guestItem.getQuantity();
+                // Cap at available stock
+                if (newQuantity > book.getStock()) {
+                    newQuantity = book.getStock();
+                }
+                item.setQuantity(newQuantity);
+            } else {
+                int quantity = guestItem.getQuantity();
+                if (quantity > book.getStock()) {
+                    quantity = book.getStock();
+                }
+                if (quantity > 0) {
+                    CartItem item = CartItem.builder()
+                            .cart(cart)
+                            .book(book)
+                            .quantity(quantity)
+                            .build();
+                    cart.addItem(item);
+                }
+            }
+        }
+
+        cartRepository.save(cart);
         return cartMapper.toCartResponseDTO(cart);
     }
 

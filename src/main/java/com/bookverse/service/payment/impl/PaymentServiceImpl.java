@@ -104,7 +104,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Payment not found"));
         Order order = payment.getOrder();
 
-        if (!order.getUser().getId().equals(userId)) {
+        if (order.getUser() == null || !order.getUser().getId().equals(userId)) {
             throw new ForbiddenException("Order does not belong to current user");
         }
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT || payment.getStatus() != PaymentStatus.PENDING) {
