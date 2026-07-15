@@ -118,16 +118,107 @@ VALUES
      (SELECT id FROM books WHERE title = 'Biophysical Chemistry'),
      'Biophysical Chemistry', 195000, 1, 195000);
 
+-- Additional customer2 orders provide stable order-list states for the demo.
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
+                    payment_method, idempotency_key, created_at, updated_at, paid_at)
+VALUES (
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    'PAID',
+    150000,
+    30000,
+    0,
+    180000,
+    '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ward 1", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
+    'VNPAY',
+    'idempotency-key-seeded-4',
+    now() - interval '3 days',
+    now() - interval '3 days',
+    now() - interval '3 days'
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES (
+    (SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-4'),
+    (SELECT id FROM books WHERE isbn = '9780300273601'),
+    'Attacking the Elites',
+    150000,
+    1,
+    150000
+);
+
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
+                    payment_method, idempotency_key, created_at, updated_at, paid_at)
+VALUES (
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    'PROCESSING',
+    495000,
+    30000,
+    0,
+    525000,
+    '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ward 1", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
+    'VNPAY',
+    'idempotency-key-seeded-5',
+    now() - interval '2 days',
+    now() - interval '2 days',
+    now() - interval '2 days'
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES
+    ((SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-5'),
+     (SELECT id FROM books WHERE isbn = '9781098166304'),
+     'AI Engineering: Building Applications with Foundation Models', 90000, 1, 90000),
+    ((SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-5'),
+     (SELECT id FROM books WHERE isbn = '9781805127857'),
+     'FastAPI Cookbook', 405000, 1, 405000);
+
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
+                    payment_method, idempotency_key, shipping_provider, tracking_code,
+                    created_at, updated_at, paid_at, shipped_at)
+VALUES (
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    'SHIPPED',
+    390000,
+    30000,
+    0,
+    420000,
+    '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ward 1", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
+    'VNPAY',
+    'idempotency-key-seeded-6',
+    'GHN',
+    'BV-DEMO-0006',
+    now() - interval '1 day',
+    now() - interval '12 hours',
+    now() - interval '1 day',
+    now() - interval '12 hours'
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES (
+    (SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-6'),
+    (SELECT id FROM books WHERE isbn = '9781098107635'),
+    'Essential Math for AI',
+    390000,
+    1,
+    390000
+);
+
 -- Every seeded order has a matching payment record.
 INSERT INTO payments (order_id, provider, status, amount, provider_order_code, transaction_id, paid_at, created_at, updated_at)
 SELECT id, 'VNPAY', 'PAID', total, id * 1000 + 1, 'DEMO-' || id, paid_at, now(), now()
 FROM orders
-WHERE idempotency_key IN ('idempotency-key-seeded-1', 'idempotency-key-seeded-2', 'idempotency-key-seeded-3');
+WHERE idempotency_key IN (
+    'idempotency-key-seeded-1', 'idempotency-key-seeded-2', 'idempotency-key-seeded-3',
+    'idempotency-key-seeded-4', 'idempotency-key-seeded-5', 'idempotency-key-seeded-6'
+);
 
 INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note, created_at)
 SELECT id, NULL, status, user_id, 'Created by deterministic demo seed', now()
 FROM orders
-WHERE idempotency_key IN ('idempotency-key-seeded-1', 'idempotency-key-seeded-2', 'idempotency-key-seeded-3');
+WHERE idempotency_key IN (
+    'idempotency-key-seeded-1', 'idempotency-key-seeded-2', 'idempotency-key-seeded-3',
+    'idempotency-key-seeded-4', 'idempotency-key-seeded-5', 'idempotency-key-seeded-6'
+);
 
 UPDATE books b
 SET sold_count = delivered.total_sold,

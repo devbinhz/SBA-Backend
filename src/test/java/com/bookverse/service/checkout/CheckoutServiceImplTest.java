@@ -1,6 +1,7 @@
 package com.bookverse.service.checkout;
 
 import com.bookverse.common.exception.CartEmptyException;
+import com.bookverse.common.exception.BadRequestException;
 import com.bookverse.config.OrderProperties;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
 import com.bookverse.dto.request.checkout.GuestCartItemDTO;
@@ -13,10 +14,14 @@ import com.bookverse.entity.Category;
 import com.bookverse.entity.Order;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.User;
+import com.bookverse.entity.UserVoucher;
+import com.bookverse.entity.Voucher;
+import com.bookverse.enums.DiscountType;
 import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.UserRole;
+import com.bookverse.enums.VoucherStatus;
 import com.bookverse.repository.AddressRepository;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.CartItemRepository;
@@ -36,12 +41,14 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +141,70 @@ class CheckoutServiceImplTest {
     }
 
     @Test
+    void previewAppliesFixedVoucherWithoutConsumingIt() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250_000, 5)).quantity(2).build();
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        when(userVoucherRepository.findByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
+        CheckoutRequestDTO request = request();
+        request.setUserVoucherId(21L);
+
+        var response = checkoutService.preview(1L, request);
+
+        assertThat(response.getDiscountAmount()).isEqualTo(20_000L);
+        assertThat(response.getTotal()).isEqualTo(510_000L);
+        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        verify(userVoucherRepository, never()).save(any());
+    }
+
+    @Test
+    void previewRejectsExpiredVoucher() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250_000, 5)).quantity(2).build();
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        voucher.setExpiresAt(Instant.now().minusSeconds(1));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        when(userVoucherRepository.findByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
+        CheckoutRequestDTO request = request();
+        request.setUserVoucherId(21L);
+
+        assertThatThrownBy(() -> checkoutService.preview(1L, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("expired");
+    }
+
+    @Test
+    void previewRejectsVoucherWhenSubtotalIsBelowMinimum() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book(100_000, 5)).quantity(1).build();
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        when(userVoucherRepository.findByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
+        CheckoutRequestDTO request = request();
+        request.setUserVoucherId(21L);
+
+        assertThatThrownBy(() -> checkoutService.preview(1L, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("minimum amount");
+    }
+
+    @Test
     void checkoutHoldsStockCreatesPendingPaymentAndClearsSelectedCartItems() {
         User user = customer();
         Address address = address(user);
@@ -186,6 +257,43 @@ class CheckoutServiceImplTest {
         verify(stockMovementRepository).saveAll(any());
         verify(orderStatusHistoryRepository).save(any());
         verify(cartItemRepository).deleteByCartIdAndIdIn(9L, List.of(3L));
+    }
+
+    @Test
+    void checkoutAppliesPercentageVoucherAndMarksItUsed() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        Book book = book(250_000, 5);
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book).quantity(2).build();
+        UserVoucher voucher = userVoucher(user, DiscountType.PERCENTAGE, 10L, 300_000L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(orderRepository.findByUserIdAndIdempotencyKey(1L, "voucher-key")).thenReturn(Optional.empty());
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        when(userVoucherRepository.findByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
+        when(bookRepository.holdStock(10L, 2)).thenReturn(1);
+        when(orderRepository.saveAndFlush(any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setId(1002L);
+            return order;
+        });
+        when(orderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        CheckoutRequestDTO request = request();
+        request.setUserVoucherId(21L);
+
+        var response = checkoutService.checkout(1L, "voucher-key", request);
+
+        var orderCaptor = forClass(Order.class);
+        verify(orderRepository).saveAndFlush(orderCaptor.capture());
+        assertThat(response.getDiscountAmount()).isEqualTo(50_000L);
+        assertThat(response.getTotal()).isEqualTo(480_000L);
+        assertThat(orderCaptor.getValue().getUserVoucher()).isSameAs(voucher);
+        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.USED);
+        assertThat(voucher.getUsedAt()).isNotNull();
+        verify(userVoucherRepository).save(voucher);
     }
 
     @Test
@@ -264,6 +372,25 @@ class CheckoutServiceImplTest {
                 .price(price)
                 .stock(stock)
                 .active(true)
+                .build();
+    }
+
+    private UserVoucher userVoucher(User user, DiscountType type, long value, long minimum) {
+        return UserVoucher.builder()
+                .id(21L)
+                .user(user)
+                .voucher(Voucher.builder()
+                        .id(2L)
+                        .name("Demo voucher")
+                        .codePrefix("DEMO")
+                        .discountType(type)
+                        .discountValue(value)
+                        .tierMinAmount(minimum)
+                        .active(true)
+                        .build())
+                .code("DEMO-0001")
+                .status(VoucherStatus.UNUSED)
+                .expiresAt(Instant.now().plusSeconds(3_600))
                 .build();
     }
 }

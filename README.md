@@ -35,6 +35,8 @@ SPRING_PROFILES_ACTIVE=local,reset mvn spring-boot:run
 
 The reset profile recreates the PostgreSQL schema and runs every SQL seed file. Stop any backend already using port `8080` before starting either mode.
 
+The deterministic reset dataset gives `customer2@gmail.com` four orders (`PAID`, `PROCESSING`, `SHIPPED`, and `DELIVERED`) plus the unused `T2-DEMO-CUSTOMER2` voucher. Pulling the seed files does not modify an existing local database; each teammate must intentionally run the reset profile to load this shared demo state.
+
 Existing databases created before guest checkout support need this one-time compatibility migration:
 
 ```bash

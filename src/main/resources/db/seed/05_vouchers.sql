@@ -6,3 +6,17 @@ VALUES
 ('15% off orders from 500,000 VND', 'T4', 'PERCENTAGE', 15, 500000, true, now(), now()),
 ('50,000 VND off orders from 1,000,000 VND', 'T5', 'FIXED', 50000, 1000000, true, now(), now())
 ON CONFLICT DO NOTHING;
+
+-- A deterministic unused voucher lets the shared customer account demo checkout without relying on VNPay.
+INSERT INTO user_vouchers (user_id, voucher_id, code, status, expires_at, created_at, updated_at)
+SELECT
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    (SELECT id FROM vouchers WHERE code_prefix = 'T2' ORDER BY id LIMIT 1),
+    'T2-DEMO-CUSTOMER2',
+    'UNUSED',
+    now() + interval '30 days',
+    now(),
+    now()
+WHERE EXISTS (SELECT 1 FROM users WHERE email = 'customer2@gmail.com')
+  AND EXISTS (SELECT 1 FROM vouchers WHERE code_prefix = 'T2')
+ON CONFLICT (code) DO NOTHING;
