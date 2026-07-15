@@ -250,7 +250,7 @@ public class OrderServiceImpl implements OrderService {
                     .reason(reason)
                     .operationKey(operationKey)
                     .note(note)
-                    .createdBy(order.getUser().getId())
+                    .createdBy(order.getUser() != null ? order.getUser().getId() : null)
                     .build());
         }
     }

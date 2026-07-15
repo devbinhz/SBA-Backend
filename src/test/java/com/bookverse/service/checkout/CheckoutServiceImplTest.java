@@ -3,6 +3,8 @@ package com.bookverse.service.checkout;
 import com.bookverse.common.exception.CartEmptyException;
 import com.bookverse.config.OrderProperties;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
+import com.bookverse.dto.request.checkout.GuestCartItemDTO;
+import com.bookverse.dto.request.checkout.GuestCheckoutRequestDTO;
 import com.bookverse.entity.Address;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Cart;
@@ -30,6 +32,7 @@ import com.bookverse.service.checkout.impl.CheckoutServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Optional;
@@ -195,6 +198,32 @@ class CheckoutServiceImplTest {
 
         assertThatThrownBy(() -> checkoutService.checkout(1L, "key-1", request()))
                 .isInstanceOf(CartEmptyException.class);
+    }
+
+    @Test
+    void guestCheckoutDoesNotMisreportAnUnrelatedDatabaseFailureAsIdempotencyConflict() {
+        GuestCartItemDTO item = new GuestCartItemDTO();
+        item.setBookId(10L);
+        item.setQuantity(1);
+        GuestCheckoutRequestDTO request = new GuestCheckoutRequestDTO();
+        request.setEmail("guest@example.com");
+        request.setRecipient("Guest User");
+        request.setPhone("0900000000");
+        request.setLine("123 Street");
+        request.setCity("Ho Chi Minh City");
+        request.setItems(List.of(item));
+        request.setDeliveryType(DeliveryType.SELF);
+
+        when(orderRepository.findByGuestEmailAndIdempotencyKey("guest@example.com", "guest-key"))
+                .thenReturn(Optional.empty());
+        when(bookRepository.findById(10L)).thenReturn(Optional.of(book(250000, 5)));
+        when(bookRepository.holdStock(10L, 1)).thenReturn(1);
+        DataIntegrityViolationException databaseFailure =
+                new DataIntegrityViolationException("orders.user_id must not be null");
+        when(orderRepository.saveAndFlush(any(Order.class))).thenThrow(databaseFailure);
+
+        assertThatThrownBy(() -> checkoutService.checkoutGuest("guest-key", request))
+                .isSameAs(databaseFailure);
     }
 
     private CheckoutRequestDTO request() {

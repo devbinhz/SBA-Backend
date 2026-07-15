@@ -48,6 +48,7 @@ import com.bookverse.enums.DeliveryType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -156,11 +157,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .expiresAt(expiresAt)
                 .build();
 
-        try {
-            order = orderRepository.saveAndFlush(order);
-        } catch (DataIntegrityViolationException exception) {
-            throw new IdempotencyConflictException("Idempotency key is already used");
-        }
+        order = saveOrder(order);
 
         List<OrderItem> orderItems = saveOrderItems(order, lines);
         Payment payment = paymentRepository.save(Payment.builder()
@@ -188,8 +185,6 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Transactional
     public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request) {
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-        // Using email for idempotency constraint check if provided, otherwise rely on key alone
-        String idempotencyCheckEmail = request.getEmail() != null ? request.getEmail() : "anonymous";
         var existingOrder = orderRepository.findByGuestEmailAndIdempotencyKey(request.getEmail(), normalizedKey);
         if (existingOrder.isPresent()) {
             return existingCheckoutResponse(existingOrder.get());
@@ -227,11 +222,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .expiresAt(expiresAt)
                 .build();
 
-        try {
-            order = orderRepository.saveAndFlush(order);
-        } catch (DataIntegrityViolationException exception) {
-            throw new IdempotencyConflictException("Idempotency key is already used");
-        }
+        order = saveOrder(order);
 
         List<OrderItem> orderItems = saveOrderItems(order, lines);
         Payment payment = paymentRepository.save(Payment.builder()
@@ -251,6 +242,29 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .build());
 
         return toCheckoutResponse(order, payment, orderItems);
+    }
+
+    private Order saveOrder(Order order) {
+        try {
+            return orderRepository.saveAndFlush(order);
+        } catch (DataIntegrityViolationException exception) {
+            if (isIdempotencyConstraintViolation(exception)) {
+                throw new IdempotencyConflictException("Idempotency key is already used");
+            }
+            throw exception;
+        }
+    }
+
+    private boolean isIdempotencyConstraintViolation(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolation
+                    && "uk_orders_idempotency_key".equalsIgnoreCase(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private User getValidUser(Long userId) {

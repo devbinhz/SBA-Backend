@@ -131,6 +131,31 @@ class OrderServiceImplTest {
     }
 
     @Test
+    void expirySchedulerReleasesStockForGuestOrderWithoutCustomerAccount() {
+        Order order = order(1002L, null, OrderStatus.PENDING_PAYMENT);
+        order.setGuestEmail("guest@example.com");
+        order.setExpiresAt(Instant.now().minusSeconds(60));
+        Book book = Book.builder().id(11L).title("Refactoring").build();
+        Payment payment = Payment.builder().id(502L).order(order).status(PaymentStatus.PENDING).build();
+        when(orderRepository.findExpiredPendingOrderIds(any(), any())).thenReturn(List.of(1002L));
+        when(paymentRepository.findWithLockByOrderId(1002L)).thenReturn(Optional.of(payment));
+        when(orderRepository.findWithLockById(1002L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(1002L))
+                .thenReturn(List.of(OrderItem.builder().id(2L).order(order).book(book).quantity(1)
+                        .unitPrice(120L).lineTotal(120L).titleSnapshot("Refactoring").build()));
+        when(stockMovementRepository.existsByOperationKey("order:1002:release:11")).thenReturn(false);
+        when(bookRepository.adjustStockAtomic(11L, 1)).thenReturn(1);
+
+        int expired = orderService.expirePendingOrders(50);
+
+        assertThat(expired).isEqualTo(1);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+        verify(bookRepository).adjustStockAtomic(11L, 1);
+        verify(stockMovementRepository).save(any());
+    }
+
+    @Test
     void expirySchedulerSkipsWhenWebhookAlreadyChangedState() {
         User user = customer(1L);
         Order order = order(1001L, user, OrderStatus.PAID);

@@ -24,7 +24,7 @@ public class OrderMapper {
     public OrderSummaryResponseDTO toSummary(Order order) {
         return OrderSummaryResponseDTO.builder()
                 .id(order.getId())
-                .userId(order.getUser().getId())
+                .userId(order.getUser() != null ? order.getUser().getId() : null)
                 .status(order.getStatus())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
@@ -46,7 +46,7 @@ public class OrderMapper {
     public OrderResponseDTO toDetail(Order order, List<OrderItem> items) {
         return OrderResponseDTO.builder()
                 .id(order.getId())
-                .userId(order.getUser().getId())
+                .userId(order.getUser() != null ? order.getUser().getId() : null)
                 .status(order.getStatus())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
