@@ -198,8 +198,10 @@ class ReviewServiceImplTest {
         when(fiveStars.getCount()).thenReturn(2L);
         when(fourStars.getRating()).thenReturn(4);
         when(fourStars.getCount()).thenReturn(1L);
-        when(bookRepository.findById(10L)).thenReturn(Optional.of(book));
+        when(bookRepository.existsById(10L)).thenReturn(true);
         when(reviewRepository.countPublishedReviewsByRating(10L)).thenReturn(List.of(fiveStars, fourStars));
+        when(reviewRepository.getPublishedAverageRatingByBookId(10L)).thenReturn(4.5);
+        when(reviewRepository.countByBookIdAndStatus(10L, ReviewStatus.PUBLISHED)).thenReturn(3);
 
         var summary = reviewService.getReviewSummary(10L);
 

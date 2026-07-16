@@ -119,6 +119,25 @@ VALUES (
 )
 ON CONFLICT (book_id, user_id) DO NOTHING;
 
+-- Keep one hidden review and its audit entry for deterministic moderation demos.
+UPDATE reviews r
+SET status = 'HIDDEN',
+    moderation_reason = 'Hidden demo review for moderation workflow',
+    moderated_by = (SELECT id FROM users WHERE email = 'admin@bookverse.local'),
+    moderated_at = now() - interval '1 day',
+    updated_at = now() - interval '1 day'
+WHERE r.book_id = (SELECT id FROM books WHERE isbn = '9781805127857')
+  AND r.user_id = (SELECT id FROM users WHERE email = 'customer@bookverse.local');
+
+INSERT INTO review_moderation_history
+    (review_id, from_status, to_status, reason, moderated_by, moderator_name, created_at)
+SELECT r.id, 'PUBLISHED', 'HIDDEN', 'Hidden demo review for moderation workflow',
+       a.id, a.full_name, now() - interval '1 day'
+FROM reviews r
+JOIN users a ON a.email = 'admin@bookverse.local'
+WHERE r.book_id = (SELECT id FROM books WHERE isbn = '9781805127857')
+  AND r.user_id = (SELECT id FROM users WHERE email = 'customer@bookverse.local');
+
 -- Keep catalog aggregates derived from published reviews instead of hard-coded book values.
 UPDATE books b
 SET rating_avg = review_stats.average_rating,

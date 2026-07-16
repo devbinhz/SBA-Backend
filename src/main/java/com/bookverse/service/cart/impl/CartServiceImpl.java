@@ -22,9 +22,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
-import java.util.HashSet;
-import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -124,40 +124,60 @@ public class CartServiceImpl implements CartService {
     public CartResponseDTO mergeCart(Long userId, CartMergeRequestDTO request) {
         Cart cart = getOrCreateCart(userId);
 
+        Map<Long, Integer> requestedQuantities = new LinkedHashMap<>();
         for (CartItemRequestDTO guestItem : request.getItems()) {
-            Book book = bookRepository.findById(guestItem.getBookId()).orElse(null);
-            if (book == null || !book.isActive() || !book.getCategory().isActive()) {
-                continue; // Skip invalid or inactive books
+            int currentQuantity = requestedQuantities.getOrDefault(guestItem.getBookId(), 0);
+            try {
+                requestedQuantities.put(
+                        guestItem.getBookId(),
+                        Math.addExact(currentQuantity, guestItem.getQuantity())
+                );
+            } catch (ArithmeticException exception) {
+                throw new BadRequestException("Cart item quantity is too large");
+            }
+        }
+
+        for (Map.Entry<Long, Integer> guestItem : requestedQuantities.entrySet()) {
+            Book book = bookRepository.findById(guestItem.getKey())
+                    .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+            if (!book.isActive() || !book.getCategory().isActive()) {
+                throw new BookInactiveException("Book is no longer available: " + book.getTitle());
             }
 
             Optional<CartItem> existingItemOpt = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
-
             if (existingItemOpt.isPresent()) {
                 CartItem item = existingItemOpt.get();
-                int newQuantity = item.getQuantity() + guestItem.getQuantity();
-                // Cap at available stock
-                if (newQuantity > book.getStock()) {
-                    newQuantity = book.getStock();
-                }
+                int newQuantity = checkedMergedQuantity(item.getQuantity(), guestItem.getValue(), book);
                 item.setQuantity(newQuantity);
             } else {
-                int quantity = guestItem.getQuantity();
-                if (quantity > book.getStock()) {
-                    quantity = book.getStock();
-                }
-                if (quantity > 0) {
-                    CartItem item = CartItem.builder()
-                            .cart(cart)
-                            .book(book)
-                            .quantity(quantity)
-                            .build();
-                    cart.addItem(item);
-                }
+                int quantity = checkedMergedQuantity(0, guestItem.getValue(), book);
+                CartItem item = CartItem.builder()
+                        .cart(cart)
+                        .book(book)
+                        .quantity(quantity)
+                        .build();
+                cart.addItem(item);
             }
         }
 
         cartRepository.save(cart);
         return cartMapper.toCartResponseDTO(cart);
+    }
+
+    private int checkedMergedQuantity(int currentQuantity, int requestedQuantity, Book book) {
+        final int mergedQuantity;
+        try {
+            mergedQuantity = Math.addExact(currentQuantity, requestedQuantity);
+        } catch (ArithmeticException exception) {
+            throw new BadRequestException("Cart item quantity is too large");
+        }
+
+        if (mergedQuantity > book.getStock()) {
+            throw new OutOfStockException(
+                    "Only " + book.getStock() + " item(s) are available for " + book.getTitle()
+            );
+        }
+        return mergedQuantity;
     }
 
     @Override

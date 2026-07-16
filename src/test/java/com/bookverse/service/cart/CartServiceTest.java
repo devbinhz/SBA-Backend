@@ -148,6 +148,41 @@ class CartServiceTest {
         assertEquals(2L, cart.getItems().getFirst().getBook().getId());
         verify(cartRepository).save(cart);
     }
+
+    @Test
+    void mergeCart_ShouldAggregateDuplicateBookEntries() {
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(cartItemRepository.findByCartIdAndBookId(1L, 1L)).thenReturn(Optional.empty());
+
+        CartMergeRequestDTO request = new CartMergeRequestDTO(List.of(
+                new CartItemRequestDTO(1L, 3),
+                new CartItemRequestDTO(1L, 4)
+        ));
+
+        cartService.mergeCart(1L, request);
+
+        assertEquals(1, cart.getItems().size());
+        assertEquals(7, cart.getItems().getFirst().getQuantity());
+        verify(bookRepository, times(1)).findById(1L);
+        verify(cartRepository).save(cart);
+    }
+
+    @Test
+    void mergeCart_ShouldRejectQuantityOverStockWithoutChangingExistingItem() {
+        CartItem existingItem = CartItem.builder().id(1L).cart(cart).book(book).quantity(8).build();
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(cartItemRepository.findByCartIdAndBookId(1L, 1L)).thenReturn(Optional.of(existingItem));
+
+        CartMergeRequestDTO request = new CartMergeRequestDTO(
+                List.of(new CartItemRequestDTO(1L, 3))
+        );
+
+        assertThrows(OutOfStockException.class, () -> cartService.mergeCart(1L, request));
+        assertEquals(8, existingItem.getQuantity());
+        verify(cartRepository, never()).save(cart);
+    }
     
     @Test
     void updateCartItem_ShouldThrowResourceNotFound_WhenItemNotInUserCart() {

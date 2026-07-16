@@ -93,7 +93,15 @@ class OrderControllerSecurityTest {
         mockMvc.perform(post("/api/v1/orders/guest")
                         .header("Idempotency-Key", "guest-test-key")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(GUEST_REQUEST))
+                .content(GUEST_REQUEST))
                 .andExpect(status().isCreated());
+    }
+
+    @Test
+    void unspecifiedGuestOrderEndpointRequiresAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/orders/guest/internal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
     }
 }

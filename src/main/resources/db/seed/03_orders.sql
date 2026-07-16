@@ -73,15 +73,18 @@ SET subtotal = 795000,
     updated_at = now()
 WHERE idempotency_key = 'idempotency-key-seeded-2';
 
-INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
-                    payment_method, idempotency_key, created_at, updated_at, paid_at, delivered_at)
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, delivery_type, gift_wrap_fee,
+                    discount_amount, total, address_snapshot, payment_method, idempotency_key,
+                    created_at, updated_at, paid_at, delivered_at)
 VALUES (
     (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
     'DELIVERED',
     1560000,
     30000,
+    'GIFT',
+    10000,
     0,
-    1590000,
+    1600000,
     '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ward 1", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
     'VNPAY',
     'idempotency-key-seeded-3',
@@ -203,6 +206,62 @@ VALUES (
     390000
 );
 
+-- Pending and cancelled orders complete the customer order-state matrix.
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
+                    payment_method, idempotency_key, expires_at, created_at, updated_at)
+VALUES (
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    'PENDING_PAYMENT',
+    75000,
+    30000,
+    0,
+    105000,
+    '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ben Nghe Ward", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
+    'VNPAY',
+    'idempotency-key-seeded-7',
+        now() + interval '7 days',
+    now() - interval '1 minute',
+    now() - interval '1 minute'
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES (
+    (SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-7'),
+    (SELECT id FROM books WHERE isbn = '9781883629007'),
+    '101 Creative Problem Solving Techniques: The Handbook of New Ideas for Business',
+    75000,
+    1,
+    75000
+);
+
+INSERT INTO orders (user_id, status, subtotal, shipping_fee, discount_amount, total, address_snapshot,
+                    payment_method, idempotency_key, expires_at, created_at, updated_at, cancelled_at)
+VALUES (
+    (SELECT id FROM users WHERE email = 'customer2@gmail.com'),
+    'CANCELLED',
+    150000,
+    30000,
+    0,
+    180000,
+    '{"city": "Ho Chi Minh City", "line": "456 Demo Street", "ward": "Ben Nghe Ward", "phone": "0900000000", "district": "District 1", "recipient": "Customer2"}',
+    'VNPAY',
+    'idempotency-key-seeded-8',
+    now() - interval '1 day',
+    now() - interval '1 day 20 minutes',
+    now() - interval '1 day',
+    now() - interval '1 day'
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES (
+    (SELECT id FROM orders WHERE idempotency_key = 'idempotency-key-seeded-8'),
+    (SELECT id FROM books WHERE isbn = '9780300273601'),
+    'Attacking the Elites',
+    150000,
+    1,
+    150000
+);
+
 -- Every seeded order has a matching payment record.
 INSERT INTO payments (order_id, provider, status, amount, provider_order_code, transaction_id, paid_at, created_at, updated_at)
 SELECT id, 'VNPAY', 'PAID', total, id * 1000 + 1, 'DEMO-' || id, paid_at, now(), now()
@@ -212,12 +271,25 @@ WHERE idempotency_key IN (
     'idempotency-key-seeded-4', 'idempotency-key-seeded-5', 'idempotency-key-seeded-6'
 );
 
+INSERT INTO payments (order_id, provider, status, amount, provider_order_code, provider_payment_link_id,
+                      checkout_url, created_at, updated_at)
+SELECT id, 'VNPAY', 'PENDING', total, id * 1000 + 1, 'DEMO-PENDING-LINK',
+       'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html', now(), now()
+FROM orders
+WHERE idempotency_key = 'idempotency-key-seeded-7';
+
+INSERT INTO payments (order_id, provider, status, amount, provider_order_code, created_at, updated_at)
+SELECT id, 'VNPAY', 'CANCELLED', total, id * 1000 + 1, now(), now()
+FROM orders
+WHERE idempotency_key = 'idempotency-key-seeded-8';
+
 INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note, created_at)
 SELECT id, NULL, status, user_id, 'Created by deterministic demo seed', now()
 FROM orders
 WHERE idempotency_key IN (
     'idempotency-key-seeded-1', 'idempotency-key-seeded-2', 'idempotency-key-seeded-3',
-    'idempotency-key-seeded-4', 'idempotency-key-seeded-5', 'idempotency-key-seeded-6'
+    'idempotency-key-seeded-4', 'idempotency-key-seeded-5', 'idempotency-key-seeded-6',
+    'idempotency-key-seeded-7', 'idempotency-key-seeded-8'
 );
 
 UPDATE books b
