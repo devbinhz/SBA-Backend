@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.LinkedHashMap;
@@ -107,17 +108,22 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     @Transactional(readOnly = true)
     public ReviewSummaryResponseDTO getReviewSummary(Long bookId) {
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new ResourceNotFoundException("Book not found"));
+        if (!bookRepository.existsById(bookId)) {
+            throw new ResourceNotFoundException("Book not found");
+        }
         Map<Integer, Long> ratingCounts = new LinkedHashMap<>();
         for (int rating = 5; rating >= 1; rating--) {
             ratingCounts.put(rating, 0L);
         }
         reviewRepository.countPublishedReviewsByRating(bookId)
                 .forEach(row -> ratingCounts.put(row.getRating(), row.getCount()));
+
+        Double average = reviewRepository.getPublishedAverageRatingByBookId(bookId);
+        int totalReviews = reviewRepository.countByBookIdAndStatus(bookId, ReviewStatus.PUBLISHED);
         return ReviewSummaryResponseDTO.builder()
-                .averageRating(book.getRatingAvg())
-                .totalReviews(book.getReviewCount())
+                .averageRating(BigDecimal.valueOf(average != null ? average : 0.0)
+                        .setScale(1, RoundingMode.HALF_UP))
+                .totalReviews(totalReviews)
                 .ratingCounts(ratingCounts)
                 .build();
     }

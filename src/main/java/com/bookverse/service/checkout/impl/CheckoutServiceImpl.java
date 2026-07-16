@@ -10,6 +10,8 @@ import com.bookverse.common.exception.OutOfStockException;
 import com.bookverse.common.exception.ResourceNotFoundException;
 import com.bookverse.config.OrderProperties;
 import com.bookverse.dto.request.checkout.CheckoutRequestDTO;
+import com.bookverse.dto.request.checkout.GuestCartItemDTO;
+import com.bookverse.dto.request.checkout.GuestCheckoutRequestDTO;
 import com.bookverse.dto.response.checkout.CheckoutItemResponseDTO;
 import com.bookverse.dto.response.checkout.CheckoutPreviewResponseDTO;
 import com.bookverse.dto.response.checkout.CheckoutResponseDTO;
@@ -46,6 +48,7 @@ import com.bookverse.enums.DeliveryType;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +88,14 @@ public class CheckoutServiceImpl implements CheckoutService {
         long subtotal = subtotal(lines);
         long discountAmount = calculateDiscount(user.getId(), request.getUserVoucherId(), subtotal);
         return toPreview(lines, discountAmount, request.getDeliveryType());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CheckoutPreviewResponseDTO previewGuest(GuestCheckoutRequestDTO request) {
+        List<CheckoutLine> lines = validateAndPriceDTO(request.getItems());
+        long subtotal = subtotal(lines);
+        return toPreview(lines, 0L, request.getDeliveryType());
     }
 
     @Override
@@ -146,11 +157,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .expiresAt(expiresAt)
                 .build();
 
-        try {
-            order = orderRepository.saveAndFlush(order);
-        } catch (DataIntegrityViolationException exception) {
-            throw new IdempotencyConflictException("Idempotency key is already used");
-        }
+        order = saveOrder(order);
 
         List<OrderItem> orderItems = saveOrderItems(order, lines);
         Payment payment = paymentRepository.save(Payment.builder()
@@ -172,6 +179,92 @@ public class CheckoutServiceImpl implements CheckoutService {
         cartItemRepository.deleteByCartIdAndIdIn(cart.getId(), List.copyOf(selectedCartItemIds));
 
         return toCheckoutResponse(order, payment, orderItems);
+    }
+
+    @Override
+    @Transactional
+    public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request) {
+        String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
+        var existingOrder = orderRepository.findByGuestEmailAndIdempotencyKey(request.getEmail(), normalizedKey);
+        if (existingOrder.isPresent()) {
+            return existingCheckoutResponse(existingOrder.get());
+        }
+
+        List<CheckoutLine> lines = validateAndPriceDTO(request.getItems());
+        for (CheckoutLine line : lines) {
+            int updated = bookRepository.holdStock(line.book().getId(), line.quantity());
+            if (updated != 1) {
+                throw new OutOfStockException("Book is out of stock: " + line.book().getTitle());
+            }
+        }
+
+        long subtotal = subtotal(lines);
+        long shippingFee = orderProperties.shippingFeeVnd();
+        DeliveryType deliveryType = request.getDeliveryType();
+        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        long total = Math.max(0L, subtotal + shippingFee + giftWrapFee); // No discount for guests
+        Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
+
+        Order order = Order.builder()
+                .user(null)
+                .guestEmail(request.getEmail())
+                .status(OrderStatus.PENDING_PAYMENT)
+                .subtotal(subtotal)
+                .shippingFee(shippingFee)
+                .deliveryType(deliveryType)
+                .giftWrapFee(giftWrapFee)
+                .discountAmount(0L)
+                .userVoucher(null)
+                .total(total)
+                .addressSnapshot(addressSnapshot(request))
+                .paymentMethod(PaymentProvider.VNPAY)
+                .idempotencyKey(normalizedKey)
+                .expiresAt(expiresAt)
+                .build();
+
+        order = saveOrder(order);
+
+        List<OrderItem> orderItems = saveOrderItems(order, lines);
+        Payment payment = paymentRepository.save(Payment.builder()
+                .order(order)
+                .provider(PaymentProvider.VNPAY)
+                .status(PaymentStatus.PENDING)
+                .amount(order.getTotal())
+                .providerOrderCode(order.getId() * 1000 + 1)
+                .build());
+
+        saveStockMovements(null, order, lines);
+        orderStatusHistoryRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .toStatus(OrderStatus.PENDING_PAYMENT)
+                .changedBy(null)
+                .note("Guest order created from checkout")
+                .build());
+
+        return toCheckoutResponse(order, payment, orderItems);
+    }
+
+    private Order saveOrder(Order order) {
+        try {
+            return orderRepository.saveAndFlush(order);
+        } catch (DataIntegrityViolationException exception) {
+            if (isIdempotencyConstraintViolation(exception)) {
+                throw new IdempotencyConflictException("Idempotency key is already used");
+            }
+            throw exception;
+        }
+    }
+
+    private boolean isIdempotencyConstraintViolation(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolation
+                    && "uk_orders_idempotency_key".equalsIgnoreCase(constraintViolation.getConstraintName())) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private User getValidUser(Long userId) {
@@ -247,6 +340,26 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .toList();
     }
 
+    private List<CheckoutLine> validateAndPriceDTO(List<GuestCartItemDTO> items) {
+        return items.stream()
+                .map(item -> {
+                    Book book = bookRepository.findById(item.getBookId())
+                            .orElseThrow(() -> new ResourceNotFoundException("Book not found: " + item.getBookId()));
+                    if (!book.isActive() || !book.getCategory().isActive()) {
+                        throw new BookInactiveException("Book is inactive: " + book.getTitle());
+                    }
+                    if (item.getQuantity() <= 0) {
+                        throw new BadRequestException("Cart item quantity must be greater than zero");
+                    }
+                    if (book.getStock() < item.getQuantity()) {
+                        throw new OutOfStockException("Book is out of stock: " + book.getTitle());
+                    }
+                    long lineTotal = book.getPrice() * item.getQuantity();
+                    return new CheckoutLine(book, item.getQuantity(), book.getPrice(), lineTotal);
+                })
+                .toList();
+    }
+
     private String normalizeIdempotencyKey(String idempotencyKey) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BadRequestException("Idempotency-Key header is required");
@@ -267,6 +380,22 @@ public class CheckoutServiceImpl implements CheckoutService {
         snapshot.put("ward", address.getWard());
         snapshot.put("district", address.getDistrict());
         snapshot.put("city", address.getCity());
+        try {
+            return objectMapper.writeValueAsString(snapshot);
+        } catch (JsonProcessingException exception) {
+            throw new BadRequestException("Address snapshot is invalid");
+        }
+    }
+
+    private String addressSnapshot(GuestCheckoutRequestDTO request) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("id", null);
+        snapshot.put("recipient", request.getRecipient());
+        snapshot.put("phone", request.getPhone());
+        snapshot.put("line", request.getLine());
+        snapshot.put("ward", request.getWard());
+        snapshot.put("district", request.getDistrict());
+        snapshot.put("city", request.getCity());
         try {
             return objectMapper.writeValueAsString(snapshot);
         } catch (JsonProcessingException exception) {
@@ -297,7 +426,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                         .reason(StockMovementReason.ORDER_HOLD)
                         .operationKey("checkout:" + order.getId() + ":hold:" + line.book().getId())
                         .note("Stock held for checkout")
-                        .createdBy(user.getId())
+                        .createdBy(user != null ? user.getId() : null)
                         .build())
                 .toList();
         stockMovementRepository.saveAll(movements);

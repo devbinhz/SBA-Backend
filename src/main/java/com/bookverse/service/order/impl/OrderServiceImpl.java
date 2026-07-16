@@ -112,7 +112,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponseDTO cancelPendingOrder(Long currentUserId, Long orderId) {
         Order order = getLockedOrderOrThrow(orderId);
-        if (!order.getUser().getId().equals(currentUserId)) {
+        if (order.getUser() == null || !order.getUser().getId().equals(currentUserId)) {
             throw new ForbiddenException("Order does not belong to current user");
         }
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -250,7 +250,7 @@ public class OrderServiceImpl implements OrderService {
                     .reason(reason)
                     .operationKey(operationKey)
                     .note(note)
-                    .createdBy(order.getUser().getId())
+                    .createdBy(order.getUser() != null ? order.getUser().getId() : null)
                     .build());
         }
     }
@@ -280,8 +280,10 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private void assertCanView(Long currentUserId, UserRole currentUserRole, Order order) {
-        if (currentUserRole != UserRole.ADMIN && !order.getUser().getId().equals(currentUserId)) {
-            throw new ForbiddenException("Order does not belong to current user");
+        if (currentUserRole != UserRole.ADMIN) {
+            if (order.getUser() == null || !order.getUser().getId().equals(currentUserId)) {
+                throw new ForbiddenException("Order does not belong to current user");
+            }
         }
     }
 

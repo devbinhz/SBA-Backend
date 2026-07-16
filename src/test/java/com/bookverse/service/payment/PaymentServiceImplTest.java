@@ -11,8 +11,10 @@ import com.bookverse.entity.OrderItem;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.PaymentEvent;
 import com.bookverse.entity.User;
+import com.bookverse.entity.UserVoucher;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentStatus;
+import com.bookverse.enums.VoucherStatus;
 import com.bookverse.integration.payment.PaymentGateway;
 import com.bookverse.integration.payment.PaymentLinkResult;
 import com.bookverse.integration.payment.PaymentWebhookResult;
@@ -235,6 +237,7 @@ class PaymentServiceImplTest {
 
         assertThat(duplicate.isDuplicate()).isTrue();
         verify(paymentRepository).findWithLockById(501L);
+        verify(voucherService).awardVoucherToUser(1L, 1000L);
     }
 
     @Test
@@ -311,6 +314,14 @@ class PaymentServiceImplTest {
     void webhookFailureCancelsPendingOrderAndReleasesStock() {
         Map<String, String> params = Map.of("vnp_TxnRef", "1001001", "vnp_ResponseCode", "24");
         Order order = Order.builder().id(1001L).status(OrderStatus.PENDING_PAYMENT).user(com.bookverse.entity.User.builder().id(1L).build()).build();
+        UserVoucher voucher = UserVoucher.builder()
+                .id(21L)
+                .code("DEMO-USED")
+                .status(VoucherStatus.USED)
+                .expiresAt(Instant.now().plusSeconds(3_600))
+                .usedAt(Instant.now())
+                .build();
+        order.setUserVoucher(voucher);
         Book book = Book.builder().id(10L).title("Clean Code").build();
         Payment payment = Payment.builder()
                 .id(501L)
@@ -344,6 +355,8 @@ class PaymentServiceImplTest {
         assertThat(response.isProcessed()).isTrue();
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getUsedAt()).isNull();
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
     }

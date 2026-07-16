@@ -8,10 +8,12 @@ import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.User;
+import com.bookverse.entity.UserVoucher;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.UserRole;
+import com.bookverse.enums.VoucherStatus;
 import com.bookverse.mapper.OrderMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
@@ -84,6 +86,8 @@ class OrderServiceImplTest {
     void customerCancelsPendingOrderAndReleasesStockOnce() {
         User user = customer(1L);
         Order order = order(1001L, user, OrderStatus.PENDING_PAYMENT);
+        UserVoucher voucher = usedVoucher();
+        order.setUserVoucher(voucher);
         Book book = Book.builder().id(10L).title("Clean Code").build();
         Payment payment = Payment.builder().id(501L).order(order).status(PaymentStatus.PENDING).build();
         when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
@@ -99,6 +103,8 @@ class OrderServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isNotNull();
+        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getUsedAt()).isNull();
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
         verify(orderStatusHistoryRepository).save(any());
@@ -108,6 +114,8 @@ class OrderServiceImplTest {
     void expirySchedulerCancelsExpiredPendingOrderExpiresPaymentAndReleasesStockOnce() {
         User user = customer(1L);
         Order order = order(1001L, user, OrderStatus.PENDING_PAYMENT);
+        UserVoucher voucher = usedVoucher();
+        order.setUserVoucher(voucher);
         order.setExpiresAt(Instant.now().minusSeconds(60));
         Book book = Book.builder().id(10L).title("Clean Code").build();
         Payment payment = Payment.builder().id(501L).order(order).status(PaymentStatus.PENDING).build();
@@ -125,9 +133,36 @@ class OrderServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         assertThat(order.getCancelledAt()).isNotNull();
+        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getUsedAt()).isNull();
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
         verify(orderStatusHistoryRepository).save(any());
+    }
+
+    @Test
+    void expirySchedulerReleasesStockForGuestOrderWithoutCustomerAccount() {
+        Order order = order(1002L, null, OrderStatus.PENDING_PAYMENT);
+        order.setGuestEmail("guest@example.com");
+        order.setExpiresAt(Instant.now().minusSeconds(60));
+        Book book = Book.builder().id(11L).title("Refactoring").build();
+        Payment payment = Payment.builder().id(502L).order(order).status(PaymentStatus.PENDING).build();
+        when(orderRepository.findExpiredPendingOrderIds(any(), any())).thenReturn(List.of(1002L));
+        when(paymentRepository.findWithLockByOrderId(1002L)).thenReturn(Optional.of(payment));
+        when(orderRepository.findWithLockById(1002L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(1002L))
+                .thenReturn(List.of(OrderItem.builder().id(2L).order(order).book(book).quantity(1)
+                        .unitPrice(120L).lineTotal(120L).titleSnapshot("Refactoring").build()));
+        when(stockMovementRepository.existsByOperationKey("order:1002:release:11")).thenReturn(false);
+        when(bookRepository.adjustStockAtomic(11L, 1)).thenReturn(1);
+
+        int expired = orderService.expirePendingOrders(50);
+
+        assertThat(expired).isEqualTo(1);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
+        verify(bookRepository).adjustStockAtomic(11L, 1);
+        verify(stockMovementRepository).save(any());
     }
 
     @Test
@@ -221,6 +256,16 @@ class OrderServiceImplTest {
                 .role(UserRole.CUSTOMER)
                 .enabled(true)
                 .emailVerified(true)
+                .build();
+    }
+
+    private UserVoucher usedVoucher() {
+        return UserVoucher.builder()
+                .id(21L)
+                .code("DEMO-USED")
+                .status(VoucherStatus.USED)
+                .expiresAt(Instant.now().plusSeconds(3_600))
+                .usedAt(Instant.now())
                 .build();
     }
 }

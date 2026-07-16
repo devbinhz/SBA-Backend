@@ -1,6 +1,7 @@
 package com.bookverse.controller;
 
 import com.bookverse.dto.request.cart.CartItemRequestDTO;
+import com.bookverse.dto.request.cart.CartMergeRequestDTO;
 import com.bookverse.dto.response.cart.CartResponseDTO;
 import com.bookverse.entity.User;
 import com.bookverse.enums.UserRole;
@@ -24,6 +25,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -105,6 +108,30 @@ class CartControllerTest {
                 .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void mergeCart_ShouldReturnCart_WhenCustomerAuthenticated() throws Exception {
+        CartMergeRequestDTO request = new CartMergeRequestDTO(List.of(new CartItemRequestDTO(1L, 2)));
+        when(cartService.mergeCart(any(), any())).thenReturn(new CartResponseDTO());
+
+        mockMvc.perform(post("/api/v1/cart/merge")
+                        .with(user(securityUser(1L, UserRole.CUSTOMER)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    void mergeCart_ShouldReturnForbidden_WhenAdminAuthenticated() throws Exception {
+        CartMergeRequestDTO request = new CartMergeRequestDTO(List.of(new CartItemRequestDTO(1L, 2)));
+
+        mockMvc.perform(post("/api/v1/cart/merge")
+                        .with(user(securityUser(2L, UserRole.ADMIN)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
     }
 
     private SecurityUser securityUser(Long id, UserRole role) {
