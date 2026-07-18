@@ -1,19 +1,19 @@
-INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, created_at, updated_at)
-VALUES ('customer@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'BookVerse Customer', 'CUSTOMER', true, true, now(), now(), now())
+INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, locked_until, created_at, updated_at)
+VALUES ('customer@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'BookVerse Customer', 'CUSTOMER', true, true, now(), NULL, now(), now())
 ON CONFLICT (email) DO NOTHING; -- ChangeMe123!
 
-INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, created_at, updated_at)
-VALUES ('customer2@gmail.com', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'Customer2', 'CUSTOMER', true, true, now(), now(), now())
+INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, locked_until, created_at, updated_at)
+VALUES ('customer2@gmail.com', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'Customer2', 'CUSTOMER', true, true, now(), NULL, now(), now())
 ON CONFLICT (email) DO NOTHING; -- ChangeMe123!
 
 -- Reset-only demo admin. Normal/production startup still uses AdminSeeder environment variables.
-INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, created_at, updated_at)
-VALUES ('admin@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'BookVerse Admin', 'ADMIN', true, true, now(), now(), now())
+INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, locked_until, created_at, updated_at)
+VALUES ('admin@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'BookVerse Admin', 'ADMIN', true, true, now(), NULL, now(), now())
 ON CONFLICT (email) DO NOTHING; -- ChangeMe123!
 
 -- A disabled account keeps the admin user-status screen deterministic.
-INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, created_at, updated_at)
-VALUES ('locked.customer@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'Locked Demo Customer', 'CUSTOMER', false, true, now(), now(), now())
+INSERT INTO users (email, password_hash, full_name, role, enabled, email_verified, email_verified_at, locked_until, created_at, updated_at)
+VALUES ('locked.customer@bookverse.local', '$2a$10$O40rJV7wpiSFdRVGxEZSmey6GvpdulHkEI/yqI5k5zDoghoNgDcta', 'Locked Demo Customer', 'CUSTOMER', false, true, now(), NULL, now(), now())
 ON CONFLICT (email) DO NOTHING; -- ChangeMe123!
 
 INSERT INTO addresses (user_id, recipient, phone, line, ward, district, city, is_default, created_at, updated_at)
