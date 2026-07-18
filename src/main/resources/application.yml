@@ -53,7 +53,7 @@ bookverse:
   security:
     jwt-secret: ${JWT_SECRET:change-me-at-least-32-bytes-change-me}
     jwt:
-      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:84600000}
+      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:86400000}
     refresh-token:
       expiration-ms: ${REFRESH_TOKEN_EXPIRATION_MS:2592000000}
       bytes: ${REFRESH_TOKEN_BYTES:32}

@@ -3,6 +3,7 @@ package com.bookverse.service.book.impl;
 import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.response.book.StockMovementResponseDTO;
 import com.bookverse.entity.StockMovement;
+import com.bookverse.entity.User;
 import com.bookverse.enums.StockMovementReason;
 import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.repository.UserRepository;
@@ -18,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,13 +69,19 @@ public class StockMovementServiceImpl implements StockMovementService {
 
         Page<StockMovement> movementsPage = stockMovementRepository.findAll(spec, pageable);
 
+        Set<Long> creatorIds = movementsPage.getContent().stream()
+                .map(StockMovement::getCreatedBy)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> creatorNames = creatorIds.isEmpty()
+                ? Map.of()
+                : userRepository.findAllById(creatorIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getFullName));
+
         List<StockMovementResponseDTO> content = movementsPage.getContent().stream().map(movement -> {
-            String createdByName = "Unknown";
-            if (movement.getCreatedBy() != null) {
-                createdByName = userRepository.findById(movement.getCreatedBy())
-                        .map(com.bookverse.entity.User::getFullName)
-                        .orElse("Unknown");
-            }
+            String createdByName = movement.getCreatedBy() == null
+                    ? "Unknown"
+                    : creatorNames.getOrDefault(movement.getCreatedBy(), "Unknown");
             return StockMovementResponseDTO.builder()
                     .id(movement.getId())
                     .bookId(movement.getBook().getId())

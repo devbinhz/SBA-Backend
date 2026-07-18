@@ -58,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -133,7 +134,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         UserVoucher userVoucher = null;
         long discountAmount = 0L;
         if (request.getUserVoucherId() != null) {
-            userVoucher = validateAndGetUserVoucher(user.getId(), request.getUserVoucherId(), subtotal);
+            userVoucher = validateAndGetUserVoucherForUpdate(user.getId(), request.getUserVoucherId(), subtotal);
             discountAmount = calculateDiscountAmount(userVoucher, subtotal);
             // Mark as used
             userVoucher.setStatus(VoucherStatus.USED);
@@ -509,7 +510,15 @@ public class CheckoutServiceImpl implements CheckoutService {
     }
 
     private UserVoucher validateAndGetUserVoucher(Long userId, Long userVoucherId, long subtotal) {
-        UserVoucher userVoucher = userVoucherRepository.findByIdAndUserId(userVoucherId, userId)
+        return validateUserVoucher(userVoucherRepository.findByIdAndUserId(userVoucherId, userId), subtotal);
+    }
+
+    private UserVoucher validateAndGetUserVoucherForUpdate(Long userId, Long userVoucherId, long subtotal) {
+        return validateUserVoucher(userVoucherRepository.findWithLockByIdAndUserId(userVoucherId, userId), subtotal);
+    }
+
+    private UserVoucher validateUserVoucher(Optional<UserVoucher> found, long subtotal) {
+        UserVoucher userVoucher = found
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher not found or does not belong to you"));
 
         if (userVoucher.getStatus() != VoucherStatus.UNUSED) {

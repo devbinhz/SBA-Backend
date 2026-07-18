@@ -221,10 +221,7 @@ public class CartServiceImpl implements CartService {
 
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
         if (existingItem.isPresent()) {
-            int newQuantity = existingItem.get().getQuantity() + requestDTO.getQuantity();
-            if (newQuantity > book.getStock()) {
-                throw new OutOfStockException("Not enough stock available");
-            }
+            int newQuantity = checkedMergedQuantity(existingItem.get().getQuantity(), requestDTO.getQuantity(), book);
             existingItem.get().setQuantity(newQuantity);
             return;
         }
