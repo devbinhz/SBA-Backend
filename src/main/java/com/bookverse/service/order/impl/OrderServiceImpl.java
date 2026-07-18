@@ -124,6 +124,13 @@ public class OrderServiceImpl implements OrderService {
         transition(order, OrderStatus.CANCELLED, "Customer cancelled order", currentUserId);
         releaseStock(order, StockMovementReason.ORDER_CANCEL_RELEASE, "Stock released after customer cancellation");
         paymentRepository.save(payment);
+
+        List<Order> recentOrders = orderRepository.findTop5ByUserIdOrderByCreatedAtDesc(currentUserId);
+        if (recentOrders.size() == 5 && recentOrders.stream().allMatch(o -> o.getStatus() == OrderStatus.CANCELLED)) {
+            User user = order.getUser();
+            user.setLockedUntil(Instant.now().plus(15, java.time.temporal.ChronoUnit.MINUTES));
+            userRepository.save(user);
+        }
         return toDetail(order);
     }
 

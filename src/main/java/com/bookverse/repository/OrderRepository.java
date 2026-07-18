@@ -20,6 +20,10 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     Optional<Order> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
 
+    boolean existsByUserIdAndStatus(Long userId, com.bookverse.enums.OrderStatus status);
+
+    List<Order> findTop5ByUserIdOrderByCreatedAtDesc(Long userId);
+
     Optional<Order> findByGuestEmailAndIdempotencyKey(String guestEmail, String idempotencyKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

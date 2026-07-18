@@ -81,6 +81,9 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Override
     @Transactional(readOnly = true)
     public CheckoutPreviewResponseDTO preview(Long userId, CheckoutRequestDTO request) {
+        if (orderRepository.existsByUserIdAndStatus(userId, OrderStatus.PENDING_PAYMENT)) {
+            throw new BadRequestException("You have a pending payment order. Please complete the payment before continuing.");
+        }
         User user = getValidUser(userId);
         getOwnedAddress(user.getId(), request.getAddressId());
         List<CartItem> cartItems = getSelectedCartItems(user.getId(), selectedCartItemIds(request));
@@ -101,6 +104,9 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Override
     @Transactional
     public CheckoutResponseDTO checkout(Long userId, String idempotencyKey, CheckoutRequestDTO request) {
+        if (orderRepository.existsByUserIdAndStatus(userId, OrderStatus.PENDING_PAYMENT)) {
+            throw new BadRequestException("You have a pending payment order. Please complete the payment before continuing.");
+        }
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         User user = getValidUser(userId);
 
