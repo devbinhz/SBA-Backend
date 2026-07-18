@@ -8,9 +8,13 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 public record MinioProperties(
         @NotBlank String endpoint,
+        String publicEndpoint,
         @NotBlank String accessKey,
         @NotBlank String secretKey,
         @NotBlank String booksBucket,
         @NotBlank String thumbnailsBucket
 ) {
+    public String publicEndpoint() {
+        return publicEndpoint != null && !publicEndpoint.isBlank() ? publicEndpoint : endpoint;
+    }
 }

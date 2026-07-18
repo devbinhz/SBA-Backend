@@ -45,7 +45,7 @@ public class BookMapper {
         }
         String coverUrl = entity.getCoverUrl();
         if ((coverUrl == null || coverUrl.isBlank()) && entity.getCoverKey() != null && !entity.getCoverKey().isBlank()) {
-            coverUrl = minioProperties.endpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + entity.getCoverKey();
+            coverUrl = minioProperties.publicEndpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + entity.getCoverKey();
         }
         return BookResponseDTO.builder()
                 .id(entity.getId())

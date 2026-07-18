@@ -1,0 +1,8 @@
+target/
+*.class
+.git/
+.gitignore
+.env
+Dockerfile
+docker-compose*.yml
+data/

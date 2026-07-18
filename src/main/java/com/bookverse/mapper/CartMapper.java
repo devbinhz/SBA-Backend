@@ -34,7 +34,7 @@ public class CartMapper {
             
             coverUrl = book.getCoverUrl();
             if ((coverUrl == null || coverUrl.isBlank()) && book.getCoverKey() != null && !book.getCoverKey().isBlank()) {
-                coverUrl = minioProperties.endpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + book.getCoverKey();
+                coverUrl = minioProperties.publicEndpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + book.getCoverKey();
             }
         }
 

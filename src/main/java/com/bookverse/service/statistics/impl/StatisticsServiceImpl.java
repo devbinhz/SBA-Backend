@@ -45,7 +45,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 .map(book -> {
                     String coverUrl = book.getCoverUrl();
                     if ((coverUrl == null || coverUrl.isBlank()) && book.getCoverKey() != null && !book.getCoverKey().isBlank()) {
-                        coverUrl = minioProperties.endpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + book.getCoverKey();
+                        coverUrl = minioProperties.publicEndpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + book.getCoverKey();
                     }
                     return BookSellingStatsDTO.builder()
                             .id(book.getId())
