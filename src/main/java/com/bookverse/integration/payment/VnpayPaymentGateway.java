@@ -3,6 +3,7 @@ package com.bookverse.integration.payment;
 import com.bookverse.common.exception.BadRequestException;
 import com.bookverse.config.VnpayProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class VnpayPaymentGateway implements PaymentGateway {
 
     private static final ZoneId VNPAY_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
@@ -38,7 +40,11 @@ public class VnpayPaymentGateway implements PaymentGateway {
         params.put("vnp_OrderType", "other");
         params.put("vnp_Locale", "vn");
         params.put("vnp_ReturnUrl", properties.returnUrl());
-        params.put("vnp_IpAddr", command.clientIp() == null || command.clientIp().isBlank() ? "127.0.0.1" : command.clientIp());
+        String ip = command.clientIp();
+        if (ip == null || ip.isBlank() || ip.contains(":") || ip.contains(",")) {
+            ip = "127.0.0.1";
+        }
+        params.put("vnp_IpAddr", ip);
         params.put("vnp_CreateDate", VNPAY_DATE_TIME.format(java.time.Instant.now()));
         if (command.expiresAt() != null) {
             params.put("vnp_ExpireDate", VNPAY_DATE_TIME.format(command.expiresAt()));
@@ -50,13 +56,23 @@ public class VnpayPaymentGateway implements PaymentGateway {
 
     @Override
     public PaymentWebhookResult verifyWebhook(PaymentWebhookCommand command) {
-        TreeMap<String, String> params = new TreeMap<>(command.params());
+        log.info("VNPay Webhook received raw params: {}", command.params());
+        TreeMap<String, String> params = new TreeMap<>();
+        command.params().forEach((key, val) -> {
+            if (key != null && key.startsWith("vnp_")) {
+                params.put(key, val);
+            }
+        });
         String secureHash = params.remove("vnp_SecureHash");
         params.remove("vnp_SecureHashType");
         if (secureHash == null || secureHash.isBlank()) {
+            log.warn("VNPay Webhook signature missing");
             return invalidWebhook(params);
         }
-        boolean valid = hmacSha512(signingPayload(params)).equalsIgnoreCase(secureHash);
+        String payload = signingPayload(params);
+        String calculated = hmacSha512(payload);
+        log.info("VNPay Webhook verification: \nPayload: {}\nCalculated Hash: {}\nReceived Hash: {}", payload, calculated, secureHash);
+        boolean valid = calculated.equalsIgnoreCase(secureHash);
         Long providerOrderCode = parseProviderOrderCode(params.get("vnp_TxnRef"));
         String responseCode = params.get("vnp_ResponseCode");
         String transactionStatus = params.get("vnp_TransactionStatus");
@@ -150,6 +166,9 @@ public class VnpayPaymentGateway implements PaymentGateway {
     }
 
     private String urlEncode(String value) {
+        if (value == null) {
+            return "";
+        }
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }
