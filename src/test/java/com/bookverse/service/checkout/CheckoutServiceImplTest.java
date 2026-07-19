@@ -17,6 +17,7 @@ import com.bookverse.entity.User;
 import com.bookverse.entity.UserVoucher;
 import com.bookverse.entity.Voucher;
 import com.bookverse.enums.DiscountType;
+import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.DeliveryType;
@@ -46,6 +47,8 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -332,6 +335,49 @@ class CheckoutServiceImplTest {
 
         assertThatThrownBy(() -> checkoutService.checkoutGuest("guest-key", request))
                 .isSameAs(databaseFailure);
+    }
+
+    @Test
+    void guestCheckoutWithoutEmailReturnsExistingOrderOnRetry() {
+        GuestCartItemDTO item = new GuestCartItemDTO();
+        item.setBookId(10L);
+        item.setQuantity(1);
+        GuestCheckoutRequestDTO request = new GuestCheckoutRequestDTO();
+        request.setEmail(null);
+        request.setRecipient("Guest User");
+        request.setPhone("0900000000");
+        request.setLine("123 Street");
+        request.setCity("Ho Chi Minh City");
+        request.setItems(List.of(item));
+        request.setDeliveryType(DeliveryType.SELF);
+
+        Order existingOrder = Order.builder()
+                .id(77L)
+                .status(OrderStatus.PENDING_PAYMENT)
+                .subtotal(250_000L)
+                .shippingFee(30_000L)
+                .deliveryType(DeliveryType.SELF)
+                .giftWrapFee(0L)
+                .discountAmount(0L)
+                .total(280_000L)
+                .build();
+        Payment payment = Payment.builder()
+                .id(88L)
+                .status(PaymentStatus.PENDING)
+                .providerOrderCode(123456L)
+                .checkoutUrl("https://sandbox.vnpayment.vn/pay")
+                .build();
+        when(orderRepository.findByIdempotencyKeyAndUserIsNullAndGuestEmailIsNull("guest-key"))
+                .thenReturn(Optional.of(existingOrder));
+        when(paymentRepository.findByOrderId(77L)).thenReturn(Optional.of(payment));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(77L)).thenReturn(List.of());
+
+        var response = checkoutService.checkoutGuest("guest-key", request);
+
+        assertThat(response.getOrderId()).isEqualTo(77L);
+        assertThat(response.getCheckoutUrl()).isEqualTo("https://sandbox.vnpayment.vn/pay");
+        verify(bookRepository, never()).holdStock(anyLong(), anyInt());
+        verify(orderRepository, never()).saveAndFlush(any(Order.class));
     }
 
     private CheckoutRequestDTO request() {

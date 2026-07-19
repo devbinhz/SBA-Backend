@@ -19,6 +19,7 @@ public class OrderResponseDTO {
 
     private Long id;
     private Long userId;
+    private String guestEmail;
     private OrderStatus status;
     private Long subtotal;
     private Long shippingFee;

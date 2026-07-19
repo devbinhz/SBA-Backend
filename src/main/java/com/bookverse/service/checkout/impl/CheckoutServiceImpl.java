@@ -192,7 +192,11 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Transactional
     public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request) {
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-        var existingOrder = orderRepository.findByGuestEmailAndIdempotencyKey(request.getEmail(), normalizedKey);
+        // Guest email is optional: "guestEmail = null" never matches in SQL, so retries
+        // from anonymous guests need a dedicated null-safe lookup to stay idempotent.
+        var existingOrder = request.getEmail() != null
+                ? orderRepository.findByGuestEmailAndIdempotencyKey(request.getEmail(), normalizedKey)
+                : orderRepository.findByIdempotencyKeyAndUserIsNullAndGuestEmailIsNull(normalizedKey);
         if (existingOrder.isPresent()) {
             return existingCheckoutResponse(existingOrder.get());
         }
