@@ -7,6 +7,7 @@ from src.schemas import (
     CatalogSearchResponse,
     CatalogUpsertItem,
     CatalogUpsertResponse,
+    CatalogRecommendHistoryMessage,
 )
 from src.services import OpenAIService, QdrantStore
 
@@ -65,9 +66,19 @@ class CatalogEngine:
         )
         return CatalogUpsertResponse(status="ok")
 
-    def search(self, query: str, top_k: int | None = None) -> CatalogSearchResponse:
+    def search(
+        self,
+        query: str,
+        top_k: int | None = None,
+        history: list[CatalogRecommendHistoryMessage] | None = None,
+    ) -> CatalogSearchResponse:
         limit = top_k or settings.default_top_k
-        vector = self.openai_service.embed_text(query)
+        search_query = query
+        if history:
+            history_list = [h.model_dump() for h in history]
+            search_query = self.openai_service.condense_query(query, history_list)
+
+        vector = self.openai_service.embed_text(search_query)
         results = self.store.client.query_points(
             collection_name=self.store.collection_name,
             query=vector,

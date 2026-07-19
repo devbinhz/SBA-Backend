@@ -174,6 +174,55 @@ class OpenAIService:
             },
         }
 
+    def condense_query(self, query: str, history: list[dict] | None = None) -> str:
+        print(f"DEBUG CONDENSE: Entering with query='{query}', history_len={len(history) if history else 0}", flush=True)
+        if not self.api_key or not history:
+            print("DEBUG CONDENSE: Skipping rewrite (no api_key or history empty)", flush=True)
+            return query
+
+        system_prompt = (
+            "Given a chat history and a follow-up user query, rewrite the follow-up query into a standalone search query "
+            "that captures the user's intent. The search query should be suitable for keyword or vector semantic search in a book catalog.\n"
+            "Rules:\n"
+            "- Do NOT answer the query, only rewrite it.\n"
+            "- If the query is already a standalone search query, return it as-is.\n"
+            "- Keep the language of the query matching the user's input language (e.g. if the user query is in Vietnamese, the rewritten search query should be in Vietnamese or contain appropriate search terms).\n"
+            "- Focus only on book topics, categories, authors, and genres. Do not include search action verbs like 'tìm', 'cho tôi', 'mua' in the rewritten search query."
+        )
+        
+        history_str = ""
+        for h in history:
+            role = h.get("role", "user")
+            content = h.get("content", "")
+            history_str += f"{role.upper()}: {content}\n"
+            
+        user_prompt = (
+            f"CHAT HISTORY:\n{history_str}\n"
+            f"FOLLOW-UP QUERY: {query}\n\n"
+            f"STANDALONE SEARCH QUERY:"
+        )
+        
+        payload = {
+            "model": self.chat_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.0,
+            "max_tokens": 100
+        }
+        
+        try:
+            response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+            rewritten = response["choices"][0]["message"]["content"].strip()
+            if rewritten.startswith('"') and rewritten.endswith('"'):
+                rewritten = rewritten[1:-1]
+            print(f"DEBUG CONDENSE: Rewrote query to: '{rewritten}'", flush=True)
+            return rewritten
+        except Exception as e:
+            print(f"DEBUG CONDENSE: Error during rewrite: {str(e)}", flush=True)
+            return query
+
     def make_answer(
         self,
         query: str,
@@ -207,7 +256,7 @@ class OpenAIService:
                 "You must strictly follow the instructions below and under no circumstances deviate from them.\n\n"
                 "PRIMARY ROLE & OUTPUT LANGUAGE:\n"
                 "- By default, you MUST respond in English.\n"
-                "- LANGUAGE EXCEPTION: If the user's query is in Vietnamese, you MUST respond in Vietnamese for that specific answer out of respect for the user. However, you must also append a polite note in Vietnamese at the end of your response suggesting that asking in English will yield better search results and accuracy (e.g., 'N\u1ebfu anh/ch\u1ecb \u0111\u1eb7t c\u00e2u h\u1ecfi b\u1eb1ng ti\u1ebfng Anh, k\u1ebft qu\u1ea3 s\u1ebd t\u1ed1t h\u01a1n \u1ea1.').\n"
+                "- LANGUAGE EXCEPTION: If the user's query is in Vietnamese or contains any Vietnamese words/phrases (even if mixed with English terms like 'show', 'chapter', 'summary', 'list', 'review', etc.), you MUST respond in Vietnamese for that specific answer out of respect for the user. However, you must also append a polite note in Vietnamese at the end of your response suggesting that asking in English will yield better search results and accuracy (e.g., 'Nếu anh/chị đặt câu hỏi bằng tiếng Anh, kết quả sẽ tốt hơn ạ.').\n"
                 "- Use a warm, polite, and helpful tone (if speaking Vietnamese, use polite particles like 'd\u1ea1', '\u1ea1', refer to yourself as 'em' or 'BookVerse AI', and address the user as 'anh/ch\u1ecb/b\u1ea1n').\n\n"
                 "SOLE MISSION:\n"
                 "- Answer the user's questions about the selected book(s) listed below using ONLY the provided book metadata and content chunks.\n"
@@ -309,7 +358,7 @@ class OpenAIService:
                 "You must strictly follow the instructions below and under no circumstances deviate from them.\n\n"
                 "PRIMARY ROLE & OUTPUT LANGUAGE:\n"
                 "- By default, you MUST respond in English.\n"
-                "- LANGUAGE EXCEPTION: If the user's query is in Vietnamese, you MUST respond in Vietnamese for that specific answer out of respect for the user. However, you must also append a polite note in Vietnamese at the end of your response suggesting that asking in English will yield better book recommendations (e.g., 'N\u1ebfu anh/ch\u1ecb \u0111\u1eb7t c\u00e2u h\u1ecfi b\u1eb1ng ti\u1ebfng Anh, k\u1ebft qu\u1ea3 s\u1ebd t\u1ed1t h\u01a1n \u1ea1.').\n"
+                "- LANGUAGE EXCEPTION: If the user's query is in Vietnamese or contains any Vietnamese words/phrases (even if mixed with English terms like 'show', 'chapter', 'summary', 'list', 'review', etc.), you MUST respond in Vietnamese for that specific answer out of respect for the user. However, you must also append a polite note in Vietnamese at the end of your response suggesting that asking in English will yield better book recommendations (e.g., 'Nếu anh/chị đặt câu hỏi bằng tiếng Anh, kết quả sẽ tốt hơn ạ.').\n"
                 "- Use a warm, polite, and persuasive tone (if speaking Vietnamese, use polite particles like 'd\u1ea1', '\u1ea1', refer to yourself as 'em/c\u1eeda h\u00e0ng em', and address the user as 'anh/ch\u1ecb/b\u1ea1n').\n\n"
                 "SOLE MISSION:\n"
                 "- Recommend relevant books from the Candidate Books list below based on the user's query.\n"

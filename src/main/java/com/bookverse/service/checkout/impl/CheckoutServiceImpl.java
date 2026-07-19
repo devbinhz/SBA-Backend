@@ -172,7 +172,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .provider(PaymentProvider.VNPAY)
                 .status(PaymentStatus.PENDING)
                 .amount(order.getTotal())
-                .providerOrderCode(order.getId() * 1000 + 1)
+                .providerOrderCode(System.currentTimeMillis() * 100 + (order.getId() % 100))
                 .build());
 
         saveStockMovements(user, order, lines);
@@ -241,7 +241,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .provider(PaymentProvider.VNPAY)
                 .status(PaymentStatus.PENDING)
                 .amount(order.getTotal())
-                .providerOrderCode(order.getId() * 1000 + 1)
+                .providerOrderCode(System.currentTimeMillis() * 100 + (order.getId() % 100))
                 .build());
 
         saveStockMovements(null, order, lines);
