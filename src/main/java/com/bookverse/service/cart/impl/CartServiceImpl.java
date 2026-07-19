@@ -16,7 +16,9 @@ import com.bookverse.mapper.CartMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.CartItemRepository;
 import com.bookverse.repository.CartRepository;
+import com.bookverse.repository.OrderRepository;
 import com.bookverse.repository.UserRepository;
+import com.bookverse.enums.OrderStatus;
 import com.bookverse.service.cart.CartService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -34,6 +36,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
     private final BookRepository bookRepository;
+    private final OrderRepository orderRepository;
     private final CartMapper cartMapper;
 
     @Override
@@ -54,6 +57,9 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartResponseDTO addCartItem(Long userId, CartItemRequestDTO requestDTO) {
+        if (orderRepository.existsByUserIdAndStatus(userId, OrderStatus.PENDING_PAYMENT)) {
+            throw new BadRequestException("You have a pending payment order. Please complete the payment before continuing.");
+        }
         Cart cart = getOrCreateCart(userId);
         mergeItem(cart, requestDTO);
         cartRepository.save(cart); // Cascade save/update
@@ -215,10 +221,7 @@ public class CartServiceImpl implements CartService {
 
         Optional<CartItem> existingItem = cartItemRepository.findByCartIdAndBookId(cart.getId(), book.getId());
         if (existingItem.isPresent()) {
-            int newQuantity = existingItem.get().getQuantity() + requestDTO.getQuantity();
-            if (newQuantity > book.getStock()) {
-                throw new OutOfStockException("Not enough stock available");
-            }
+            int newQuantity = checkedMergedQuantity(existingItem.get().getQuantity(), requestDTO.getQuantity(), book);
             existingItem.get().setQuantity(newQuantity);
             return;
         }

@@ -55,5 +55,8 @@ public class User extends BaseEntity {
 
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
 }
 

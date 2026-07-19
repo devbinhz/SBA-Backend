@@ -44,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
-                if (!userDetails.isEnabled()) {
+                if (!userDetails.isEnabled() || !userDetails.isAccountNonLocked()) {
                     filterChain.doFilter(request, response);
                     return;
                 }

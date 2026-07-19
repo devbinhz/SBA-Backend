@@ -11,7 +11,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: create
     properties:
       hibernate:
         jdbc:
@@ -19,7 +19,7 @@ spring:
     defer-datasource-initialization: true
   sql:
     init:
-      mode: never
+      mode: always
       data-locations:
         - classpath:db/seed/01_users.sql
         - classpath:db/seed/02_books.sql
@@ -53,7 +53,7 @@ bookverse:
   security:
     jwt-secret: ${JWT_SECRET:change-me-at-least-32-bytes-change-me}
     jwt:
-      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:84600000}
+      access-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:86400000}
     refresh-token:
       expiration-ms: ${REFRESH_TOKEN_EXPIRATION_MS:2592000000}
       bytes: ${REFRESH_TOKEN_BYTES:32}
@@ -81,6 +81,7 @@ bookverse:
     timeout-ms: ${RAG_TIMEOUT_MS:300000}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:minioadmin}
     books-bucket: ${MINIO_BOOKS_BUCKET:bookverse-books}

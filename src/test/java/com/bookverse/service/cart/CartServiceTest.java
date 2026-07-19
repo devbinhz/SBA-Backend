@@ -15,6 +15,7 @@ import com.bookverse.mapper.CartMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.CartItemRepository;
 import com.bookverse.repository.CartRepository;
+import com.bookverse.repository.OrderRepository;
 import com.bookverse.repository.UserRepository;
 import com.bookverse.service.cart.impl.CartServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,8 @@ class CartServiceTest {
     private UserRepository userRepository;
     @Mock
     private BookRepository bookRepository;
+    @Mock
+    private OrderRepository orderRepository;
     @Mock
     private CartMapper cartMapper;
 

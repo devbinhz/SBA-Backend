@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.List;
+import java.time.Instant;
 
 @RequiredArgsConstructor
 public class SecurityUser implements UserDetails {
@@ -38,7 +39,7 @@ public class SecurityUser implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return user.getLockedUntil() == null || user.getLockedUntil().isBefore(Instant.now());
     }
 
     @Override

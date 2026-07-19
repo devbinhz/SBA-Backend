@@ -58,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 @Service
@@ -81,6 +82,9 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Override
     @Transactional(readOnly = true)
     public CheckoutPreviewResponseDTO preview(Long userId, CheckoutRequestDTO request) {
+        if (orderRepository.existsByUserIdAndStatus(userId, OrderStatus.PENDING_PAYMENT)) {
+            throw new BadRequestException("You have a pending payment order. Please complete the payment before continuing.");
+        }
         User user = getValidUser(userId);
         getOwnedAddress(user.getId(), request.getAddressId());
         List<CartItem> cartItems = getSelectedCartItems(user.getId(), selectedCartItemIds(request));
@@ -101,6 +105,9 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Override
     @Transactional
     public CheckoutResponseDTO checkout(Long userId, String idempotencyKey, CheckoutRequestDTO request) {
+        if (orderRepository.existsByUserIdAndStatus(userId, OrderStatus.PENDING_PAYMENT)) {
+            throw new BadRequestException("You have a pending payment order. Please complete the payment before continuing.");
+        }
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         User user = getValidUser(userId);
 
@@ -127,7 +134,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         UserVoucher userVoucher = null;
         long discountAmount = 0L;
         if (request.getUserVoucherId() != null) {
-            userVoucher = validateAndGetUserVoucher(user.getId(), request.getUserVoucherId(), subtotal);
+            userVoucher = validateAndGetUserVoucherForUpdate(user.getId(), request.getUserVoucherId(), subtotal);
             discountAmount = calculateDiscountAmount(userVoucher, subtotal);
             // Mark as used
             userVoucher.setStatus(VoucherStatus.USED);
@@ -503,7 +510,15 @@ public class CheckoutServiceImpl implements CheckoutService {
     }
 
     private UserVoucher validateAndGetUserVoucher(Long userId, Long userVoucherId, long subtotal) {
-        UserVoucher userVoucher = userVoucherRepository.findByIdAndUserId(userVoucherId, userId)
+        return validateUserVoucher(userVoucherRepository.findByIdAndUserId(userVoucherId, userId), subtotal);
+    }
+
+    private UserVoucher validateAndGetUserVoucherForUpdate(Long userId, Long userVoucherId, long subtotal) {
+        return validateUserVoucher(userVoucherRepository.findWithLockByIdAndUserId(userVoucherId, userId), subtotal);
+    }
+
+    private UserVoucher validateUserVoucher(Optional<UserVoucher> found, long subtotal) {
+        UserVoucher userVoucher = found
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher not found or does not belong to you"));
 
         if (userVoucher.getStatus() != VoucherStatus.UNUSED) {

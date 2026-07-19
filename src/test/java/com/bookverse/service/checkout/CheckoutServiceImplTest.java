@@ -272,7 +272,7 @@ class CheckoutServiceImplTest {
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
-        when(userVoucherRepository.findByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
+        when(userVoucherRepository.findWithLockByIdAndUserId(21L, 1L)).thenReturn(Optional.of(voucher));
         when(bookRepository.holdStock(10L, 2)).thenReturn(1);
         when(orderRepository.saveAndFlush(any(Order.class))).thenAnswer(invocation -> {
             Order order = invocation.getArgument(0);
