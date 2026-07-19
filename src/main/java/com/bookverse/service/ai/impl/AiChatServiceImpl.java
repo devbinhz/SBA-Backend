@@ -153,11 +153,18 @@ public class AiChatServiceImpl implements AiChatService {
     public AiRecommendResponse recommend(AiRecommendRequest request, Long userId) {
         long startTime = System.currentTimeMillis();
 
+        List<RagChatHistoryMessage> ragHistory = new ArrayList<>();
+        if (request.history() != null) {
+            for (ChatHistoryMessage msg : request.history()) {
+                ragHistory.add(new RagChatHistoryMessage(msg.role(), msg.content()));
+            }
+        }
+
         int topK = request.topK() != null ? request.topK() : 10;
         List<Long> bookIds = new ArrayList<>();
         try {
             com.bookverse.integration.rag.dto.RagCatalogSearchResponse catalogResp =
-                    ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.query(), topK));
+                    ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.query(), topK, ragHistory));
             if (catalogResp != null && catalogResp.hits() != null) {
                 bookIds = catalogResp.hits().stream()
                         .map(com.bookverse.integration.rag.dto.RagCatalogBookHit::bookId)
@@ -190,13 +197,6 @@ public class AiChatServiceImpl implements AiChatService {
                         b.getCategory() != null ? b.getCategory().getName() : null
                 ))
                 .toList();
-
-        List<RagChatHistoryMessage> ragHistory = new ArrayList<>();
-        if (request.history() != null) {
-            for (ChatHistoryMessage msg : request.history()) {
-                ragHistory.add(new RagChatHistoryMessage(msg.role(), msg.content()));
-            }
-        }
 
         String answer = "";
         List<Long> recommendedIds = new ArrayList<>();
@@ -405,7 +405,7 @@ public class AiChatServiceImpl implements AiChatService {
             List<Long> matchedBookIds = new ArrayList<>();
             try {
                 com.bookverse.integration.rag.dto.RagCatalogSearchResponse catalogResp =
-                        ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.content(), 10));
+                        ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.content(), 10, ragHistory));
                 if (catalogResp != null && catalogResp.hits() != null) {
                     matchedBookIds = catalogResp.hits().stream()
                             .map(com.bookverse.integration.rag.dto.RagCatalogBookHit::bookId)

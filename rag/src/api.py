@@ -129,7 +129,8 @@ def create_app() -> FastAPI:
         request: CatalogSearchRequest,
         engine: CatalogEngine = Depends(get_catalog_engine),
     ) -> CatalogSearchResponse:
-        return engine.search(query=request.query, top_k=request.top_k)
+        print(f"DEBUG CATALOG_SEARCH: query='{request.query}', top_k={request.top_k}, history={request.history}", flush=True)
+        return engine.search(query=request.query, top_k=request.top_k, history=request.history)
 
     @app.delete("/catalog/{book_id}")
     def delete_catalog(
