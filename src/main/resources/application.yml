@@ -39,6 +39,9 @@ spring:
       mail:
         smtp:
           auth: ${SMTP_AUTH:true}
+          connectiontimeout: 3000
+          timeout: 3000
+          writetimeout: 3000
           starttls:
             enable: ${SMTP_STARTTLS_ENABLE:true}
 
@@ -63,6 +66,9 @@ bookverse:
     expiration-ms: ${OTP_EXPIRATION_MS:600000}
   mail:
     from-email: ${SMTP_FROM_EMAIL:${SMTP_USERNAME:}}
+  resend:
+    api-key: ${RESEND_API_KEY:}
+    from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
   vnpay:
     tmn-code: ${VNPAY_TMN_CODE:}
     hash-secret: ${VNPAY_HASH_SECRET:}
