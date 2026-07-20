@@ -27,6 +27,7 @@ import com.bookverse.integration.rag.dto.RagCatalogRecommendItem;
 import com.bookverse.integration.rag.dto.RagCatalogRecommendResponse;
 import com.bookverse.integration.rag.dto.RagChatHistoryMessage;
 import com.bookverse.dto.request.ai.ChatHistoryMessage;
+import java.util.Objects;
 import com.bookverse.mapper.BookMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.ChatMessageRepository;
@@ -231,8 +232,20 @@ public class AiChatServiceImpl implements AiChatService {
         }
 
         List<Long> finalRecommendedIds = recommendedIds;
-        List<BookResponseDTO> bookDTOs = sortedBooks.stream()
-                .filter(b -> finalRecommendedIds.contains(b.getId()))
+        List<Book> finalBooks;
+        if (finalRecommendedIds != null && !finalRecommendedIds.isEmpty()) {
+            List<Book> fetched = bookRepository.findAllById(finalRecommendedIds);
+            Map<Long, Book> fetchedMap = fetched.stream().collect(Collectors.toMap(Book::getId, Function.identity()));
+            finalBooks = finalRecommendedIds.stream()
+                    .map(fetchedMap::get)
+                    .filter(Objects::nonNull)
+                    .filter(b -> b.isActive() && b.getCategory() != null && b.getCategory().isActive())
+                    .toList();
+        } else {
+            finalBooks = sortedBooks;
+        }
+
+        List<BookResponseDTO> bookDTOs = finalBooks.stream()
                 .map(bookMapper::toResponse)
                 .toList();
 

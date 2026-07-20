@@ -137,6 +137,7 @@ public class FastApiRagClient implements RagClient {
         try {
             return restClient.post()
                     .uri("/catalog/recommend")
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
                     .retrieve()
                     .body(RagCatalogRecommendResponse.class);

@@ -73,26 +73,8 @@ class CatalogEngine:
         history: list[CatalogRecommendHistoryMessage] | None = None,
     ) -> CatalogSearchResponse:
         limit = top_k or settings.default_top_k
-        search_query = query
-        if history:
-            history_list = [h.model_dump() for h in history]
-            condensed = self.openai_service.condense_query(query, history_list)
-            if condensed and condensed.strip():
-                search_query = condensed
-
-        vector = self.openai_service.embed_text(search_query)
-        results = self.store.client.query_points(
-            collection_name=self.store.collection_name,
-            query=vector,
-            limit=limit,
-            with_payload=True,
-        )
-        hits = []
-        for point in results.points:
-            book_id = point.payload.get("book_id")
-            if book_id is not None:
-                hits.append(CatalogBookHit(book_id=int(book_id), score=point.score))
-        return CatalogSearchResponse(hits=hits)
+        print("DEBUG catalog_search: Bypassing vector pre-search, returning empty hits to let Agent LLM handle tool calls directly", flush=True)
+        return CatalogSearchResponse(hits=[])
 
     def delete(self, book_id: int) -> None:
         try:
