@@ -22,7 +22,8 @@ from src.schemas import SearchHit, Source, Usage
 def _call_openai_api(url: str, api_key: str, payload: dict) -> dict:
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
+        "Authorization": f"Bearer {api_key}",
+        "ngrok-skip-browser-warning": "69420"
     }
     req = urllib.request.Request(
         url,
@@ -31,7 +32,7 @@ def _call_openai_api(url: str, api_key: str, payload: dict) -> dict:
         method="POST"
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req, timeout=60) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         error_body = e.read().decode("utf-8")
@@ -119,11 +120,13 @@ class OpenAIService:
         embedding_model: str | None = None,
         chat_model: str | None = None,
         dimensions: int | None = None,
+        base_url: str | None = None,
     ) -> None:
         self.embedding_model = embedding_model or settings.openai_embedding_model
         self.chat_model = chat_model or settings.openai_chat_model
         self.dimensions = dimensions or settings.embedding_dimension
         self.api_key = settings.openai_api_key
+        self.base_url = (base_url or settings.openai_base_url).rstrip("/")
 
     def embed_texts(self, texts: list[str], dimensions: int | None = None) -> list[list[float]]:
         if self.api_key:
@@ -213,7 +216,7 @@ class OpenAIService:
         }
         
         try:
-            response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+            response = _call_openai_api(f"{self.base_url}/chat/completions", self.api_key, payload)
             rewritten = response["choices"][0]["message"]["content"].strip()
             if rewritten.startswith('"') and rewritten.endswith('"'):
                 rewritten = rewritten[1:-1]
@@ -286,7 +289,7 @@ class OpenAIService:
                 "temperature": 0.3
             }
             try:
-                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                response = _call_openai_api(f"{self.base_url}/chat/completions", self.api_key, payload)
                 answer = response["choices"][0]["message"]["content"]
                 answer = _postfilter_response(answer, query)
                 
@@ -392,7 +395,7 @@ class OpenAIService:
                 "response_format": {"type": "json_object"}
             }
             try:
-                response = _call_openai_api("https://api.openai.com/v1/chat/completions", self.api_key, payload)
+                response = _call_openai_api(f"{self.base_url}/chat/completions", self.api_key, payload)
                 content = json.loads(response["choices"][0]["message"]["content"])
                 ans = content.get("answer", "")
                 ans = _postfilter_response(ans, query)

@@ -178,7 +178,7 @@ def create_app() -> FastAPI:
     @app.post("/catalog/recommend", response_model=CatalogRecommendResponse)
     def catalog_recommend(
         request: CatalogRecommendRequest,
-        openai_service: FakeOpenAIService = Depends(get_openai_service),
+        openai_service: OpenAIService = Depends(get_openai_service),
     ) -> CatalogRecommendResponse:
         candidate_books = [b.model_dump() for b in request.books]
         history_list = [h.model_dump() for h in request.history] if request.history else []

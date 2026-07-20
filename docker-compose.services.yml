@@ -71,6 +71,8 @@ services:
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BOOKS_BUCKET=bookverse-books
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_CHAT_MODEL=${OPENAI_CHAT_MODEL}
     depends_on:
       - mongo
       - qdrant

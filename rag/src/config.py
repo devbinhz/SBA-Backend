@@ -27,11 +27,14 @@ class Settings:
     qdrant_timeout_seconds: int = int(os.getenv("QDRANT_TIMEOUT_SECONDS", "120"))
     qdrant_upsert_batch_size: int = int(os.getenv("QDRANT_UPSERT_BATCH_SIZE", "64"))
     qdrant_delete_batch_size: int = int(os.getenv("QDRANT_DELETE_BATCH_SIZE", "256"))
+    openai_base_url: str = os.getenv(
+        "OPENAI_BASE_URL", "https://miscellaneous-mentalistically-ibrahim.ngrok-free.dev/v1"
+    )
     openai_embedding_model: str = os.getenv(
         "OPENAI_EMBEDDING_MODEL", os.getenv("FAKE_EMBEDDING_MODEL", "text-embedding-3-small")
     )
     openai_chat_model: str = os.getenv(
-        "OPENAI_CHAT_MODEL", os.getenv("FAKE_CHAT_MODEL", "gpt-4o")
+        "OPENAI_CHAT_MODEL", os.getenv("FAKE_CHAT_MODEL", "Ternary-Bonsai-27B-Q2_0.gguf")
     )
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
     chunk_target_tokens: int = int(os.getenv("CHUNK_TARGET_TOKENS", "500"))
