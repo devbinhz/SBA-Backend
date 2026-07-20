@@ -76,7 +76,9 @@ class CatalogEngine:
         search_query = query
         if history:
             history_list = [h.model_dump() for h in history]
-            search_query = self.openai_service.condense_query(query, history_list)
+            condensed = self.openai_service.condense_query(query, history_list)
+            if condensed and condensed.strip():
+                search_query = condensed
 
         vector = self.openai_service.embed_text(search_query)
         results = self.store.client.query_points(

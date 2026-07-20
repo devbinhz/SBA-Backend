@@ -219,9 +219,9 @@ class OpenAIService:
             response = _call_openai_api(f"{self.base_url}/chat/completions", self.api_key, payload)
             rewritten = response["choices"][0]["message"]["content"].strip()
             if rewritten.startswith('"') and rewritten.endswith('"'):
-                rewritten = rewritten[1:-1]
+                rewritten = rewritten[1:-1].strip()
             print(f"DEBUG CONDENSE: Rewrote query to: '{rewritten}'", flush=True)
-            return rewritten
+            return rewritten if rewritten else query
         except Exception as e:
             print(f"DEBUG CONDENSE: Error during rewrite: {str(e)}", flush=True)
             return query
@@ -276,7 +276,7 @@ class OpenAIService:
             )
             openai_messages = [{"role": "system", "content": system_prompt}]
             if history:
-                for h in history:
+                for h in history[-4:]:
                     role_val = h.get("role") if isinstance(h, dict) else getattr(h, "role", "user")
                     content_val = h.get("content") if isinstance(h, dict) else getattr(h, "content", "")
                     openai_messages.append({"role": role_val, "content": content_val})
@@ -342,7 +342,7 @@ class OpenAIService:
         if self.api_key:
             books_list_str = ""
             for b in books:
-                desc = b.get("description") or "Không có mô tả."
+                desc = _preview(b.get("description") or "Không có mô tả.", 150)
                 price_val = f"{b['price']} VND" if b.get("price") is not None else "Không có thông tin giá."
                 pub = b.get("publisher") or "Không rõ NXB"
                 year = b.get("publication_year") or "Không rõ năm"
@@ -380,7 +380,7 @@ class OpenAIService:
             )
             openai_messages = [{"role": "system", "content": system_prompt}]
             if history:
-                for h in history:
+                for h in history[-4:]:
                     openai_messages.append({
                         "role": h.get("role", "user"),
                         "content": h.get("content", "")
@@ -392,28 +392,40 @@ class OpenAIService:
                 "model": self.chat_model,
                 "messages": openai_messages,
                 "temperature": 0.3,
+                "max_tokens": 350,
                 "response_format": {"type": "json_object"}
             }
             try:
                 response = _call_openai_api(f"{self.base_url}/chat/completions", self.api_key, payload)
-                content = json.loads(response["choices"][0]["message"]["content"])
+                raw_text = response["choices"][0]["message"]["content"].strip()
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_text:
+                    raw_text = raw_text.split("```")[1].split("```")[0].strip()
+                
+                content = json.loads(raw_text)
                 ans = content.get("answer", "")
                 ans = _postfilter_response(ans, query)
                 rec_ids = content.get("recommended_ids", [])
                 valid_ids = [b['id'] for b in books]
                 rec_ids = [int(rid) for rid in rec_ids if int(rid) in valid_ids]
-                return ans, rec_ids
-            except Exception:
+                if rec_ids or ans:
+                    return ans, rec_ids
+            except Exception as e:
+                print(f"DEBUG RECOMMEND EXCEPTION: {str(e)}", flush=True)
                 pass
 
         recommended_ids = []
         words = query.lower().split()
+        stop_words = {"find", "books", "about", "show", "me", "the", "and", "for", "with", "tại", "cho", "tôi", "sách"}
+        keywords = [w for w in words if w not in stop_words and len(w) >= 2]
         for b in books:
             title_lower = b['title'].lower()
             desc_lower = (b.get('description') or '').lower()
+            cat_lower = (b.get('category') or '').lower()
             matched = False
-            for word in words:
-                if len(word) > 2 and (word in title_lower or word in desc_lower):
+            for word in (keywords if keywords else words):
+                if len(word) >= 2 and (word in title_lower or word in desc_lower or word in cat_lower):
                     matched = True
                     break
             if matched:

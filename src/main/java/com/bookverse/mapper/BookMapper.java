@@ -44,7 +44,9 @@ public class BookMapper {
             return null;
         }
         String coverUrl = entity.getCoverUrl();
-        if ((coverUrl == null || coverUrl.isBlank()) && entity.getCoverKey() != null && !entity.getCoverKey().isBlank()) {
+        if (coverUrl != null && coverUrl.startsWith("/minio/")) {
+            coverUrl = minioProperties.publicEndpoint().replace("/minio", "") + coverUrl;
+        } else if ((coverUrl == null || coverUrl.isBlank()) && entity.getCoverKey() != null && !entity.getCoverKey().isBlank()) {
             coverUrl = minioProperties.publicEndpoint() + "/" + minioProperties.thumbnailsBucket() + "/" + entity.getCoverKey();
         }
         return BookResponseDTO.builder()
