@@ -32,7 +32,7 @@ import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.PaymentService;
 import com.bookverse.service.voucher.VoucherService;
-import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.integration.mail.MailService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -270,10 +270,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .note("VNPAY webhook confirmed payment")
                 .build());
         
-        // Award voucher
-        if (order.getUser() != null) {
-            voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
-        } else if (order.getGuestEmail() != null) {
+        // Voucher awarding on payment is removed in the new schema
+        if (order.getGuestEmail() != null) {
             String guestEmail = order.getGuestEmail();
             String orderCode = order.getOrderCode();
             String guestToken = order.getGuestToken();
@@ -317,7 +315,7 @@ public class PaymentServiceImpl implements PaymentService {
         releaseStock(order, releaseReason);
         
         if (order.getUserVoucher() != null) {
-            order.getUserVoucher().setStatus(VoucherStatus.UNUSED);
+            order.getUserVoucher().setStatus(UserVoucherStatus.UNUSED);
             order.getUserVoucher().setUsedAt(null);
         }
 

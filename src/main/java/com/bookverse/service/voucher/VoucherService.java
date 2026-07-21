@@ -1,15 +1,23 @@
 package com.bookverse.service.voucher;
 
 import com.bookverse.common.dto.PageResponseDTO;
+import com.bookverse.dto.request.voucher.VoucherCreateRequestDTO;
+import com.bookverse.dto.request.voucher.VoucherUpdateRequestDTO;
+import com.bookverse.dto.response.voucher.AdminVoucherResponseDTO;
+import com.bookverse.dto.response.voucher.UserVoucherResponseDTO;
 import com.bookverse.dto.response.voucher.VoucherResponseDTO;
+import com.bookverse.enums.VoucherStatus;
 import org.springframework.data.domain.Pageable;
 
 public interface VoucherService {
-    PageResponseDTO<VoucherResponseDTO> getMyVouchers(Long userId, Pageable pageable);
-    void awardVoucherToUser(Long userId, Long orderAmount);
+    UserVoucherResponseDTO claimVoucher(Long userId, Long voucherId);
+    void grantWelcomeVoucher(Long userId);
+    PageResponseDTO<UserVoucherResponseDTO> getMyVouchers(Long userId, Pageable pageable);
     
-    com.bookverse.dto.response.voucher.AdminVoucherResponseDTO createVoucherConfig(com.bookverse.dto.request.voucher.VoucherCreateRequestDTO request);
-    com.bookverse.dto.response.voucher.AdminVoucherResponseDTO updateVoucherConfig(Long id, com.bookverse.dto.request.voucher.VoucherUpdateRequestDTO request);
+    AdminVoucherResponseDTO createVoucherConfig(VoucherCreateRequestDTO request);
+    AdminVoucherResponseDTO updateVoucherConfig(Long id, VoucherUpdateRequestDTO request);
+    PageResponseDTO<AdminVoucherResponseDTO> getAllVoucherConfigs(Long campaignId, VoucherStatus status, Pageable pageable);
     void deleteVoucherConfig(Long id);
-    PageResponseDTO<com.bookverse.dto.response.voucher.AdminVoucherResponseDTO> getAllVoucherConfigs(Boolean active, Pageable pageable);
+    
+    PageResponseDTO<VoucherResponseDTO> getActiveVouchers(Pageable pageable);
 }

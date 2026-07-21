@@ -1,7 +1,7 @@
 package com.bookverse.repository;
 
 import com.bookverse.entity.UserVoucher;
-import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,9 +17,11 @@ import java.util.Optional;
 @Repository
 public interface UserVoucherRepository extends JpaRepository<UserVoucher, Long> {
 
-    Page<UserVoucher> findByUserIdAndStatusAndExpiresAtGreaterThan(Long userId, VoucherStatus status, Instant now, Pageable pageable);
+    Page<UserVoucher> findByUserIdAndStatusAndExpiresAtGreaterThan(Long userId, UserVoucherStatus status, Instant now, Pageable pageable);
 
     Optional<UserVoucher> findByIdAndUserId(Long id, Long userId);
+    
+    boolean existsByUserIdAndVoucherId(Long userId, Long voucherId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select uv from UserVoucher uv where uv.id = :id and uv.user.id = :userId")

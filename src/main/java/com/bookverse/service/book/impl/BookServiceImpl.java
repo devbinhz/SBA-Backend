@@ -8,6 +8,7 @@ import com.bookverse.dto.request.book.CreateBookRequestDTO;
 import com.bookverse.dto.request.book.StockAdjustmentRequestDTO;
 import com.bookverse.dto.request.book.UpdateBookRequestDTO;
 import com.bookverse.dto.response.book.BookResponseDTO;
+import com.bookverse.dto.response.book.StockMovementResponseDTO;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.BookChangeLog;
 import com.bookverse.entity.Category;
@@ -372,14 +373,14 @@ public class BookServiceImpl implements BookService {
 
         org.springframework.data.domain.Page<StockMovement> movementsPage = stockMovementRepository.findByBookId(bookId, pageable);
 
-        List<com.bookverse.dto.response.book.StockMovementResponseDTO> content = movementsPage.getContent().stream().map(movement -> {
+        List<StockMovementResponseDTO> content = movementsPage.getContent().stream().map(movement -> {
             String createdByName = "Unknown";
             if (movement.getCreatedBy() != null) {
                 createdByName = userRepository.findById(movement.getCreatedBy())
                         .map(com.bookverse.entity.User::getFullName)
                         .orElse("Unknown");
             }
-            return com.bookverse.dto.response.book.StockMovementResponseDTO.builder()
+            return StockMovementResponseDTO.builder()
                     .id(movement.getId())
                     .bookId(movement.getBook().getId())
                     .orderId(movement.getOrderId())

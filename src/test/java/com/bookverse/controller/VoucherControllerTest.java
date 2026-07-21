@@ -4,6 +4,7 @@ import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.voucher.VoucherCreateRequestDTO;
 import com.bookverse.dto.response.voucher.AdminVoucherResponseDTO;
 import com.bookverse.enums.DiscountType;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.enums.UserRole;
 import com.bookverse.security.CustomUserDetailsService;
 import com.bookverse.security.JwtAuthenticationFilter;
@@ -88,15 +89,15 @@ class VoucherControllerTest {
         request.setName("Discount 10%");
         request.setDiscountType(DiscountType.PERCENTAGE);
         request.setDiscountValue(10L);
-        request.setTierMinAmount(100000L);
+        request.setMinOrderValue(100_000L);
 
         AdminVoucherResponseDTO response = AdminVoucherResponseDTO.builder()
                 .id(1L)
                 .name("Discount 10%")
                 .discountType(DiscountType.PERCENTAGE)
                 .discountValue(10L)
-                .tierMinAmount(100000L)
-                .active(true)
+                .minOrderValue(100_000L)
+                .status(VoucherStatus.ACTIVE)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
@@ -123,7 +124,7 @@ class VoucherControllerTest {
                 List.of(response), 0, 20, 1, 1
         );
 
-        when(voucherService.getAllVoucherConfigs(any(), any())).thenReturn(pageResponse);
+        when(voucherService.getAllVoucherConfigs(any(), any(), org.mockito.ArgumentMatchers.any())).thenReturn(pageResponse);
 
         mockMvc.perform(get("/api/v1/vouchers")
                 .with(user(adminUser)))

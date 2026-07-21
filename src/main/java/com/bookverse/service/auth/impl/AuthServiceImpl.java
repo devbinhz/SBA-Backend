@@ -22,6 +22,7 @@ import com.bookverse.repository.UserRepository;
 import com.bookverse.security.JwtService;
 import com.bookverse.service.auth.AuthService;
 import com.bookverse.service.auth.RefreshTokenService;
+import com.bookverse.service.voucher.VoucherService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -41,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final MailService mailService;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final VoucherService voucherService;
 
     @Value("${bookverse.security.jwt.access-expiration-ms:900000}")
     private long accessExpirationMs;
@@ -91,6 +93,8 @@ public class AuthServiceImpl implements AuthService {
         user.setEmailVerified(true);
         user.setEmailVerifiedAt(Instant.now());
         userRepository.save(user);
+
+        voucherService.grantWelcomeVoucher(user.getId());
 
         otpStore.deleteOtp("verify-email", email);
     }

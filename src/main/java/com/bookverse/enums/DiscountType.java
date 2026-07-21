@@ -1,6 +1,6 @@
 package com.bookverse.enums;
 
 public enum DiscountType {
-    FIXED,
+    FIXED_AMOUNT,
     PERCENTAGE
 }

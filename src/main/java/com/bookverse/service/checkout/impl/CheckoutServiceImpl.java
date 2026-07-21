@@ -42,7 +42,7 @@ import com.bookverse.repository.UserRepository;
 import com.bookverse.repository.UserVoucherRepository;
 import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.entity.UserVoucher;
-import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.enums.DiscountType;
 import com.bookverse.enums.DeliveryType;
 import com.bookverse.integration.mail.MailService;
@@ -141,7 +141,7 @@ public class CheckoutServiceImpl implements CheckoutService {
             userVoucher = validateAndGetUserVoucherForUpdate(user.getId(), request.getUserVoucherId(), subtotal);
             discountAmount = calculateDiscountAmount(userVoucher, subtotal);
             // Mark as used
-            userVoucher.setStatus(VoucherStatus.USED);
+            userVoucher.setStatus(UserVoucherStatus.USED);
             userVoucher.setUsedAt(Instant.now());
             userVoucherRepository.save(userVoucher);
         }
@@ -564,24 +564,31 @@ public class CheckoutServiceImpl implements CheckoutService {
         UserVoucher userVoucher = found
                 .orElseThrow(() -> new ResourceNotFoundException("Voucher not found or does not belong to you"));
 
-        if (userVoucher.getStatus() != VoucherStatus.UNUSED) {
+        if (userVoucher.getStatus() != UserVoucherStatus.UNUSED) {
             throw new BadRequestException("Voucher has already been used or is expired");
         }
         if (Instant.now().isAfter(userVoucher.getExpiresAt())) {
             throw new BadRequestException("Voucher has expired");
         }
-        if (subtotal < userVoucher.getVoucher().getTierMinAmount()) {
+        if (subtotal < userVoucher.getVoucher().getMinOrderValue()) {
             throw new BadRequestException("Order subtotal does not meet the minimum amount for this voucher");
         }
         return userVoucher;
     }
 
     private long calculateDiscountAmount(UserVoucher userVoucher, long subtotal) {
-        if (userVoucher.getVoucher().getDiscountType() == DiscountType.FIXED) {
-            return Math.min(subtotal, userVoucher.getVoucher().getDiscountValue());
+        long discount = 0;
+        if (userVoucher.getVoucher().getDiscountType() == DiscountType.FIXED_AMOUNT) {
+            discount = userVoucher.getVoucher().getDiscountValue();
         } else {
-            return Math.min(subtotal, (long) (subtotal * (userVoucher.getVoucher().getDiscountValue() / 100.0)));
+            discount = (long) (subtotal * (userVoucher.getVoucher().getDiscountValue() / 100.0));
         }
+        
+        if (userVoucher.getVoucher().getMaxDiscountAmount() != null && discount > userVoucher.getVoucher().getMaxDiscountAmount()) {
+            discount = userVoucher.getVoucher().getMaxDiscountAmount();
+        }
+        
+        return Math.min(subtotal, discount);
     }
 
     private long calculateDiscount(Long userId, Long userVoucherId, long subtotal) {

@@ -1,5 +1,6 @@
 package com.bookverse.service.review.impl;
 
+import com.bookverse.common.exception.BadRequestException;
 import com.bookverse.common.exception.ConflictException;
 import com.bookverse.common.exception.ForbiddenException;
 import com.bookverse.common.exception.ResourceNotFoundException;
@@ -150,9 +151,8 @@ public class ReviewServiceImpl implements ReviewService {
         if (review.getStatus() == request.getStatus()) {
             throw new ConflictException("Review is already " + request.getStatus().name().toLowerCase());
         }
-        if (request.getStatus() == ReviewStatus.HIDDEN
-                && (request.getReason() == null || request.getReason().isBlank())) {
-            throw new com.bookverse.common.exception.BadRequestException("A reason is required when hiding a review");
+        if (request.getStatus() == ReviewStatus.HIDDEN && (request.getReason() == null || request.getReason().trim().isEmpty())) {
+            throw new BadRequestException("A reason is required when hiding a review");
         }
 
         User moderator = userRepository.findById(adminId)

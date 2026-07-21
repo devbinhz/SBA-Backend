@@ -17,12 +17,14 @@ import com.bookverse.entity.User;
 import com.bookverse.entity.UserVoucher;
 import com.bookverse.entity.Voucher;
 import com.bookverse.enums.DiscountType;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.DeliveryType;
 import com.bookverse.enums.UserRole;
 import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.repository.AddressRepository;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.CartItemRepository;
@@ -153,7 +155,7 @@ class CheckoutServiceImplTest {
         Address address = address(user);
         Cart cart = Cart.builder().id(9L).user(user).build();
         CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250_000, 5)).quantity(2).build();
-        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED_AMOUNT, 20_000L, 200_000L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
@@ -166,7 +168,7 @@ class CheckoutServiceImplTest {
 
         assertThat(response.getDiscountAmount()).isEqualTo(20_000L);
         assertThat(response.getTotal()).isEqualTo(510_000L);
-        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getStatus()).isEqualTo(UserVoucherStatus.UNUSED);
         verify(userVoucherRepository, never()).save(any());
     }
 
@@ -176,7 +178,7 @@ class CheckoutServiceImplTest {
         Address address = address(user);
         Cart cart = Cart.builder().id(9L).user(user).build();
         CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250_000, 5)).quantity(2).build();
-        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED_AMOUNT, 20_000L, 200_000L);
         voucher.setExpiresAt(Instant.now().minusSeconds(1));
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
@@ -197,7 +199,7 @@ class CheckoutServiceImplTest {
         Address address = address(user);
         Cart cart = Cart.builder().id(9L).user(user).build();
         CartItem item = CartItem.builder().id(3L).cart(cart).book(book(100_000, 5)).quantity(1).build();
-        UserVoucher voucher = userVoucher(user, DiscountType.FIXED, 20_000L, 200_000L);
+        UserVoucher voucher = userVoucher(user, DiscountType.FIXED_AMOUNT, 20_000L, 200_000L);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
         when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
@@ -346,7 +348,7 @@ class CheckoutServiceImplTest {
         assertThat(response.getDiscountAmount()).isEqualTo(50_000L);
         assertThat(response.getTotal()).isEqualTo(480_000L);
         assertThat(orderCaptor.getValue().getUserVoucher()).isSameAs(voucher);
-        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.USED);
+        assertThat(voucher.getStatus()).isEqualTo(UserVoucherStatus.USED);
         assertThat(voucher.getUsedAt()).isNotNull();
         verify(userVoucherRepository).save(voucher);
     }
@@ -480,14 +482,14 @@ class CheckoutServiceImplTest {
                 .voucher(Voucher.builder()
                         .id(2L)
                         .name("Demo voucher")
-                        .codePrefix("DEMO")
+                        //.codePrefix("DEMO")
                         .discountType(type)
                         .discountValue(value)
-                        .tierMinAmount(minimum)
+                        .minOrderValue(minimum)
                         .active(true)
                         .build())
-                .code("DEMO-0001")
-                .status(VoucherStatus.UNUSED)
+                //.code("DEMO-0001")
+                .status(UserVoucherStatus.UNUSED)
                 .expiresAt(Instant.now().plusSeconds(3_600))
                 .build();
     }

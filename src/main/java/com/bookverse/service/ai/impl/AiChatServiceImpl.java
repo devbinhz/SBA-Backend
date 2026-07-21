@@ -22,6 +22,9 @@ import com.bookverse.integration.rag.RagClient;
 import com.bookverse.integration.rag.dto.RagQueryRequest;
 import com.bookverse.integration.rag.dto.RagQueryResponse;
 import com.bookverse.integration.rag.dto.RagSource;
+import com.bookverse.integration.rag.dto.RagCatalogSearchRequest;
+import com.bookverse.integration.rag.dto.RagCatalogSearchResponse;
+import com.bookverse.integration.rag.dto.RagCatalogBookHit;
 import com.bookverse.integration.rag.dto.RagCatalogRecommendRequest;
 import com.bookverse.integration.rag.dto.RagCatalogRecommendItem;
 import com.bookverse.integration.rag.dto.RagCatalogRecommendResponse;
@@ -164,11 +167,10 @@ public class AiChatServiceImpl implements AiChatService {
         int topK = request.topK() != null ? request.topK() : 10;
         List<Long> bookIds = new ArrayList<>();
         try {
-            com.bookverse.integration.rag.dto.RagCatalogSearchResponse catalogResp =
-                    ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.query(), topK, ragHistory));
+            RagCatalogSearchResponse catalogResp = ragClient.catalogSearch(new RagCatalogSearchRequest(request.query(), topK, ragHistory));
             if (catalogResp != null && catalogResp.hits() != null) {
                 bookIds = catalogResp.hits().stream()
-                        .map(com.bookverse.integration.rag.dto.RagCatalogBookHit::bookId)
+                        .map(RagCatalogBookHit::bookId)
                         .toList();
             }
         } catch (Exception e) {
@@ -417,11 +419,10 @@ public class AiChatServiceImpl implements AiChatService {
 
             List<Long> matchedBookIds = new ArrayList<>();
             try {
-                com.bookverse.integration.rag.dto.RagCatalogSearchResponse catalogResp =
-                        ragClient.catalogSearch(new com.bookverse.integration.rag.dto.RagCatalogSearchRequest(request.content(), 10, ragHistory));
+                RagCatalogSearchResponse catalogResp = ragClient.catalogSearch(new RagCatalogSearchRequest(request.content(), 10, ragHistory));
                 if (catalogResp != null && catalogResp.hits() != null) {
                     matchedBookIds = catalogResp.hits().stream()
-                            .map(com.bookverse.integration.rag.dto.RagCatalogBookHit::bookId)
+                            .map(RagCatalogBookHit::bookId)
                             .toList();
                 }
             } catch (Exception e) {}
@@ -452,8 +453,8 @@ public class AiChatServiceImpl implements AiChatService {
                     .toList();
 
             try {
-                com.bookverse.integration.rag.dto.RagCatalogRecommendResponse recommendResp = ragClient.catalogRecommend(
-                        new com.bookverse.integration.rag.dto.RagCatalogRecommendRequest(request.content(), recommendItems, ragHistory)
+                RagCatalogRecommendResponse recommendResp = ragClient.catalogRecommend(
+                        new RagCatalogRecommendRequest(request.content(), recommendItems, ragHistory)
                 );
                 if (recommendResp != null) {
                     answer = recommendResp.answer();

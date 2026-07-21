@@ -20,7 +20,7 @@ import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.StockMovementReason;
 import com.bookverse.enums.UserRole;
-import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.mapper.OrderMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
@@ -235,7 +235,7 @@ public class OrderServiceImpl implements OrderService {
         if (next == OrderStatus.CANCELLED) {
             order.setCancelledAt(now);
             if (order.getUserVoucher() != null) {
-                order.getUserVoucher().setStatus(VoucherStatus.UNUSED);
+                order.getUserVoucher().setStatus(UserVoucherStatus.UNUSED);
                 order.getUserVoucher().setUsedAt(null);
             }
         } else if (next == OrderStatus.SHIPPED) {

@@ -14,6 +14,7 @@ import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.UserRole;
 import com.bookverse.enums.VoucherStatus;
+import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.mapper.OrderMapper;
 import com.bookverse.repository.BookRepository;
 import com.bookverse.repository.OrderItemRepository;
@@ -103,7 +104,7 @@ class OrderServiceImplTest {
         assertThat(response.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(order.getCancelledAt()).isNotNull();
-        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getStatus()).isEqualTo(UserVoucherStatus.UNUSED);
         assertThat(voucher.getUsedAt()).isNull();
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
@@ -133,7 +134,7 @@ class OrderServiceImplTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.EXPIRED);
         assertThat(order.getCancelledAt()).isNotNull();
-        assertThat(voucher.getStatus()).isEqualTo(VoucherStatus.UNUSED);
+        assertThat(voucher.getStatus()).isEqualTo(UserVoucherStatus.UNUSED);
         assertThat(voucher.getUsedAt()).isNull();
         verify(bookRepository).adjustStockAtomic(10L, 2);
         verify(stockMovementRepository).save(any());
@@ -368,8 +369,8 @@ class OrderServiceImplTest {
     private UserVoucher usedVoucher() {
         return UserVoucher.builder()
                 .id(21L)
-                .code("DEMO-USED")
-                .status(VoucherStatus.USED)
+                //.code("DEMO-USED")
+                .status(UserVoucherStatus.USED)
                 .expiresAt(Instant.now().plusSeconds(3_600))
                 .usedAt(Instant.now())
                 .build();

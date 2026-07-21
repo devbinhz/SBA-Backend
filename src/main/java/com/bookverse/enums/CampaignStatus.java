@@ -1,7 +1,7 @@
 package com.bookverse.enums;
 
-public enum VoucherStatus {
+public enum CampaignStatus {
     ACTIVE,
     INACTIVE,
-    EXPIRED
+    COMPLETED
 }
