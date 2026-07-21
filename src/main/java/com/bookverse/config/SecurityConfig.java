@@ -59,6 +59,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html"
                         ).permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/categories").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/banners").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}/reviews").permitAll()
