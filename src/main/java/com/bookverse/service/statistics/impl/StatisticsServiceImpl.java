@@ -35,7 +35,9 @@ public class StatisticsServiceImpl implements StatisticsService {
         List<OrderStatus> revenueStatuses = List.of(
                 OrderStatus.PAID,
                 OrderStatus.PROCESSING,
+                OrderStatus.PACKED,
                 OrderStatus.SHIPPED,
+                OrderStatus.RE_DELIVERY,
                 OrderStatus.DELIVERED
         );
         long recognizedRevenue = orderRepository.sumRevenueByStatuses(revenueStatuses);

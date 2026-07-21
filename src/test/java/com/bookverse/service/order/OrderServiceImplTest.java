@@ -200,7 +200,7 @@ class OrderServiceImplTest {
 
     @Test
     void adminShippingRequiresProviderAndTracking() {
-        Order order = order(1001L, customer(1L), OrderStatus.PROCESSING);
+        Order order = order(1001L, customer(1L), OrderStatus.PACKED);
         when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
@@ -208,6 +208,74 @@ class OrderServiceImplTest {
                         .shippingProvider("GHN")
                         .build()))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void adminProgressesThroughProcessingPackedShippedWithoutSkipping() {
+        Order order = order(1001L, customer(1L), OrderStatus.PAID);
+        when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
+
+        var processing = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.PROCESSING)
+                .build());
+        assertThat(processing.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+
+        var packed = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.PACKED)
+                .build());
+        assertThat(packed.getStatus()).isEqualTo(OrderStatus.PACKED);
+
+        assertThatThrownBy(() -> orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                        .status(OrderStatus.DELIVERED)
+                        .build()))
+                .isInstanceOf(ConflictException.class);
+
+        var shipped = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.SHIPPED)
+                .shippingProvider("GHN")
+                .trackingCode("TRACK-1")
+                .build());
+        assertThat(shipped.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+    }
+
+    @Test
+    void adminCanRedispatchAfterFailedDeliveryAttempt() {
+        Order order = order(1001L, customer(1L), OrderStatus.SHIPPED);
+        Book book = Book.builder().id(10L).title("Clean Code").build();
+        when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(1001L))
+                .thenReturn(List.of(OrderItem.builder().id(1L).order(order).book(book).quantity(1).unitPrice(100L).lineTotal(100L).titleSnapshot("Clean Code").build()));
+        when(bookRepository.incrementSoldCountAtomic(10L, 1)).thenReturn(1);
+
+        var reDelivery = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.RE_DELIVERY)
+                .note("Customer unavailable at address")
+                .build());
+        assertThat(reDelivery.getStatus()).isEqualTo(OrderStatus.RE_DELIVERY);
+
+        var delivered = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.DELIVERED)
+                .build());
+        assertThat(delivered.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+        verify(bookRepository).incrementSoldCountAtomic(10L, 1);
+    }
+
+    @Test
+    void adminCanRedispatchBackToShippedRequiringNewTracking() {
+        Order order = order(1001L, customer(1L), OrderStatus.RE_DELIVERY);
+        when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                        .status(OrderStatus.SHIPPED)
+                        .build()))
+                .isInstanceOf(ConflictException.class);
+
+        var shipped = orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.SHIPPED)
+                .shippingProvider("GHN")
+                .trackingCode("TRACK-2")
+                .build());
+        assertThat(shipped.getStatus()).isEqualTo(OrderStatus.SHIPPED);
     }
 
     @Test

@@ -203,8 +203,12 @@ public class OrderServiceImpl implements OrderService {
         OrderStatus current = order.getStatus();
         OrderStatus next = request.getStatus();
         boolean valid = (current == OrderStatus.PAID && next == OrderStatus.PROCESSING)
-                || (current == OrderStatus.PROCESSING && next == OrderStatus.SHIPPED)
-                || (current == OrderStatus.SHIPPED && next == OrderStatus.DELIVERED);
+                || (current == OrderStatus.PROCESSING && next == OrderStatus.PACKED)
+                || (current == OrderStatus.PACKED && next == OrderStatus.SHIPPED)
+                || (current == OrderStatus.SHIPPED && next == OrderStatus.DELIVERED)
+                || (current == OrderStatus.SHIPPED && next == OrderStatus.RE_DELIVERY)
+                || (current == OrderStatus.RE_DELIVERY && next == OrderStatus.SHIPPED)
+                || (current == OrderStatus.RE_DELIVERY && next == OrderStatus.DELIVERED);
         if (!valid) {
             throw orderStateInvalid("Invalid order status transition");
         }
