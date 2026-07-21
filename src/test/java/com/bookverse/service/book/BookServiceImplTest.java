@@ -1,6 +1,7 @@
 package com.bookverse.service.book;
 
 import com.bookverse.common.exception.BadRequestException;
+import com.bookverse.dto.request.book.CreateBookRequestDTO;
 import com.bookverse.dto.request.book.StockAdjustmentRequestDTO;
 import com.bookverse.dto.request.book.UpdateBookRequestDTO;
 import com.bookverse.entity.Book;
@@ -122,5 +123,68 @@ class BookServiceImplTest {
         assertThat(logsCaptor.getValue()).allSatisfy(log -> assertThat(log.getChangedBy()).isEqualTo(9L));
         assertThat(logsCaptor.getValue().get(0).getOldValue()).isEqualTo("Old title");
         assertThat(logsCaptor.getValue().get(0).getNewValue()).isEqualTo("New title");
+    }
+
+    @Test
+    void createBook_RoundsPriceAndOriginalPriceUpToNearestThousand() {
+        Category category = Category.builder().id(1L).name("Fiction").build();
+        CreateBookRequestDTO request = CreateBookRequestDTO.builder()
+                .title("Book")
+                .author("Author")
+                .categoryId(1L)
+                .price(100_001L)
+                .originalPrice(150_500L)
+                .stock(0)
+                .fileKey("file-key")
+                .coverKey("cover-key")
+                .active(true)
+                .build();
+
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(bookMapper.toEntity(request)).thenAnswer(invocation -> {
+            CreateBookRequestDTO dto = invocation.getArgument(0);
+            Book book = new Book();
+            book.setPrice(dto.getPrice());
+            book.setOriginalPrice(dto.getOriginalPrice());
+            return book;
+        });
+        when(bookRepository.save(any(Book.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bookMapper.toResponse(any(Book.class))).thenReturn(BookResponseDTO.builder().build());
+
+        bookService.createBook(request);
+
+        assertThat(request.getPrice()).isEqualTo(101_000L);
+        assertThat(request.getOriginalPrice()).isEqualTo(151_000L);
+    }
+
+    @Test
+    void updateBook_RoundsPriceAndOriginalPriceUpToNearestThousand() {
+        Category category = Category.builder().id(1L).name("Fiction").build();
+        Book book = Book.builder()
+                .id(1L)
+                .title("Title")
+                .author("Author")
+                .category(category)
+                .price(100_000L)
+                .active(true)
+                .build();
+        UpdateBookRequestDTO request = UpdateBookRequestDTO.builder()
+                .title("Title")
+                .author("Author")
+                .categoryId(1L)
+                .price(100_001L)
+                .originalPrice(150_500L)
+                .active(true)
+                .build();
+
+        when(bookRepository.findById(1L)).thenReturn(Optional.of(book));
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(bookRepository.save(book)).thenReturn(book);
+        when(bookMapper.toResponse(book)).thenReturn(BookResponseDTO.builder().id(1L).build());
+
+        bookService.updateBook(1L, request, 9L);
+
+        assertThat(request.getPrice()).isEqualTo(101_000L);
+        assertThat(request.getOriginalPrice()).isEqualTo(151_000L);
     }
 }

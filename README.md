@@ -1,13 +1,17 @@
 # SBA-Backend
 
-BookVerse backend foundation (Java 21 / Spring Boot / Maven).
+BookVerse backend — a full-featured e-commerce platform for books with AI-powered search and recommendations.
+
+**Stack:** Java 21 · Spring Boot 3.4.6 · Maven · PostgreSQL · Redis · MinIO · JWT · OpenAPI/Swagger
 
 ## Quick start
 
-```powershell
+```bash
 docker compose up -d
-.\mvnw.cmd test
+./mvnw test
 ```
+
+API docs available at `http://localhost:8080/swagger-ui.html` after startup.
 
 ## Local database modes
 
@@ -60,11 +64,103 @@ docker compose exec -T postgres psql -U bookverse -d bookverse \
   -f /dev/stdin < scripts/migrations/20260715_guest_checkout.sql
 ```
 
-## Included Phase 1 scaffold
+## Features
 
-- Spring Boot application bootstrap
-- PostgreSQL + Redis Docker Compose
-- Profile-based local schema creation and deterministic demo seed
-- API response wrappers and global exception handling
-- JPA auditing, ModelMapper strict mode, OpenAPI
-- Admin seeder and architecture test
+- **Authentication** — register, email OTP verification, login (JWT), token refresh, logout, forgot/reset password
+- **Books** — search, filter, pagination; admin CRUD with change logs and stock adjustments
+- **Categories** — public listing; admin CRUD with activate/deactivate
+- **Cart** — per-user cart with guest-to-user merge
+- **Orders & Checkout** — authenticated and guest checkout, order status lifecycle, idempotent order creation
+- **Payments** — VNPAY integration with webhook handling
+- **Reviews** — per-book ratings and comments; admin moderation with history
+- **Vouchers** — discount codes (percentage or fixed); admin management
+- **Addresses** — multiple delivery addresses with default selection
+- **AI Chat & Recommendations** — conversational book search using RAG; per-user chat sessions
+- **RAG Management** — admin ingest/delete book content into vector store; bulk operations
+- **File Uploads** — book content (PDF/EPUB) and cover images via MinIO
+- **Statistics** — admin business overview (revenue, orders, users, top books)
+- **AI Usage Monitoring** — per-user and daily AI usage logs for admins
+
+## API overview
+
+Base URL: `/api/v1`
+
+| Group | Prefix | Public | Auth |
+|-------|--------|--------|------|
+| Auth | `/auth` | all endpoints | — |
+| Users | `/users` | — | `CUSTOMER`, `ADMIN` |
+| Books | `/books` | GET list & detail | `ADMIN` for write |
+| Categories | `/categories` | GET list | `ADMIN` for write |
+| Cart | `/cart` | — | `CUSTOMER` |
+| Orders | `/orders` | guest preview & checkout | `CUSTOMER`, `ADMIN` |
+| Payments | `/payments` | VNPAY webhook | — |
+| Reviews | `/books/{id}/reviews` | GET list & summary | `CUSTOMER` for write |
+| Vouchers | `/vouchers` | — | `CUSTOMER`, `ADMIN` |
+| AI Chat | `/ai` | — | `CUSTOMER`, `ADMIN` |
+| Admin AI Usage | `/admin/ai/usage` | — | `ADMIN` |
+| Admin RAG | `/admin/rag` | — | `ADMIN` |
+| Admin Uploads | `/admin/uploads` | — | `ADMIN` |
+| Statistics | `/statistics` | — | `ADMIN` |
+| Stock Movements | `/stock-movements` | — | `ADMIN` |
+
+### Auth endpoints (`/api/v1/auth`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/register` | Register new customer account |
+| POST | `/verify-email` | Verify email with OTP |
+| POST | `/resend-verification` | Resend verification OTP |
+| POST | `/login` | Authenticate and receive JWT token pair |
+| POST | `/refresh` | Exchange refresh token for new token pair |
+| POST | `/logout` | Revoke refresh token |
+| POST | `/forgot-password` | Request password reset OTP |
+| POST | `/reset-password` | Reset password using OTP |
+
+**Login response:**
+```json
+{
+  "accessToken": "eyJ...",
+  "refreshToken": "abc123...",
+  "tokenType": "Bearer",
+  "accessExpiresIn": 86400000,
+  "refreshExpiresIn": 2592000000,
+  "user": { "id", "email", "fullName", "role", "enabled", "emailVerified" }
+}
+```
+
+Include the access token in subsequent requests:
+```
+Authorization: Bearer <accessToken>
+```
+
+## Configuration
+
+Key settings in `application.yml` (override via environment variables or `application-local.yml`):
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `bookverse.security.jwt-secret` | `${JWT_SECRET}` | JWT signing secret (min 32 bytes) |
+| `bookverse.security.jwt.access-expiration-ms` | `86400000` | Access token TTL (24 h) |
+| `bookverse.security.refresh-token.expiration-ms` | `2592000000` | Refresh token TTL (30 days) |
+| `bookverse.cors.allowed-origins` | `http://localhost:5173` | Comma-separated CORS origins |
+| `bookverse.otp.expiration-ms` | `600000` | OTP validity window (10 min) |
+| `bookverse.order.shipping-fee-vnd` | `30000` | Fixed shipping fee (VND) |
+| `bookverse.order.expiration-minutes` | `15` | Pending order auto-cancel timeout |
+| `bookverse.rag.base-url` | `http://localhost:8000` | RAG service URL |
+| `bookverse.minio.endpoint` | `http://localhost:9000` | MinIO endpoint |
+| `bookverse.vnpay.payment-url` | VNPAY sandbox URL | VNPAY payment gateway |
+
+## RAG service
+
+The AI chat and recommendation features require the local RAG service. See [`rag/README.md`](rag/README.md) for setup instructions (FastAPI + Qdrant + MongoDB).
+
+## Infrastructure (Docker Compose)
+
+| Service | Port | Purpose |
+|---------|------|---------|
+| PostgreSQL | 5432 | Primary database |
+| Redis | 6379 | OTP storage, caching |
+| MinIO | 9000 / 9001 | File storage (book files, covers) |
+| Qdrant | 6333 | Vector store for RAG |
+| MongoDB | 27017 | RAG chunk/metadata store |
+| Mongo Express | 8081 | MongoDB UI |

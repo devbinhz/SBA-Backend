@@ -257,9 +257,12 @@ public class BookServiceImpl implements BookService {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
 
+        request.setPrice(roundUpToThousand(request.getPrice()));
+        request.setOriginalPrice(roundUpToThousand(request.getOriginalPrice()));
+
         Book book = bookMapper.toEntity(request);
         book.setCategory(category);
-        
+
         Book savedBook = bookRepository.save(book);
 
         // Initial stock import logic if stock > 0
@@ -296,6 +299,9 @@ public class BookServiceImpl implements BookService {
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+
+        request.setPrice(roundUpToThousand(request.getPrice()));
+        request.setOriginalPrice(roundUpToThousand(request.getOriginalPrice()));
 
         String oldFileKey = book.getFileKey();
         bookMapper.updateEntity(book, request);
@@ -474,5 +480,12 @@ public class BookServiceImpl implements BookService {
 
     private String toLogValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private Long roundUpToThousand(Long price) {
+        if (price == null) {
+            return null;
+        }
+        return (price + 999) / 1000 * 1000;
     }
 }
