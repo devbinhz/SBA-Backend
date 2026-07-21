@@ -110,6 +110,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public OrderResponseDTO trackGuestOrder(String email, String orderCode, String guestToken) {
+        Order order = orderRepository.findByGuestEmailAndOrderCodeAndGuestToken(email, orderCode, guestToken)
+                .orElseThrow(() -> new ResourceNotFoundException("Guest order not found or invalid credentials"));
+        return toDetail(order);
+    }
+
+    @Override
     @Transactional
     public OrderResponseDTO cancelPendingOrder(Long currentUserId, Long orderId) {
         Order order = getLockedOrderOrThrow(orderId);

@@ -10,7 +10,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
-@Service("smtpMailService")
+@Service("mailService")
 @RequiredArgsConstructor
 @Slf4j
 public class SmtpMailService implements MailService {
@@ -19,6 +19,9 @@ public class SmtpMailService implements MailService {
 
     @Value("${bookverse.mail.from-email}")
     private String fromEmail;
+
+    @Value("${bookverse.order.guest-track-url}")
+    private String guestTrackUrl;
 
     @Override
     public void sendVerificationEmail(String to, String otp) {
@@ -36,6 +39,30 @@ public class SmtpMailService implements MailService {
         String htmlBody = "<h1>Reset Your Password</h1>" +
                 "<p>Your password reset code is: <strong>" + otp + "</strong></p>" +
                 "<p>This code will expire in 10 minutes.</p>";
+
+        sendEmail(to, subject, htmlBody);
+    }
+
+    @Override
+    public void sendGuestOrderConfirmationEmail(String to, String orderCode, String guestToken) {
+        String subject = "Order Confirmation - BookVerse";
+        String magicLink = guestTrackUrl + "?code=" + orderCode + "&token=" + guestToken;
+        String htmlBody = "<h1>Thank you for your order!</h1>" +
+                "<p>Your order code is: <strong>" + orderCode + "</strong></p>" +
+                "<p>You can track your order status using the following link:</p>" +
+                "<p><a href=\"" + magicLink + "\">Track My Order</a></p>";
+
+        sendEmail(to, subject, htmlBody);
+    }
+
+    @Override
+    public void sendGuestOrderPaymentSuccessEmail(String to, String orderCode, String guestToken) {
+        String subject = "Payment Successful - BookVerse";
+        String magicLink = guestTrackUrl + "?code=" + orderCode + "&token=" + guestToken;
+        String htmlBody = "<h1>Payment Successful!</h1>" +
+                "<p>We have successfully received the payment for your order: <strong>" + orderCode + "</strong></p>" +
+                "<p>You can track your order status using the following link:</p>" +
+                "<p><a href=\"" + magicLink + "\">Track My Order</a></p>";
 
         sendEmail(to, subject, htmlBody);
     }

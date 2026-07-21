@@ -66,9 +66,7 @@ bookverse:
     expiration-ms: ${OTP_EXPIRATION_MS:600000}
   mail:
     from-email: ${SMTP_FROM_EMAIL:${SMTP_USERNAME:}}
-  resend:
-    api-key: ${RESEND_API_KEY:}
-    from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
+
   vnpay:
     tmn-code: ${VNPAY_TMN_CODE:}
     hash-secret: ${VNPAY_HASH_SECRET:}
@@ -78,6 +76,7 @@ bookverse:
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
     expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
+    guest-track-url: ${GUEST_TRACK_URL:https://yourshop.com/orders/track}
   scheduler:
     expired-orders:
       fixed-delay-ms: ${EXPIRED_ORDER_SCHEDULER_FIXED_DELAY_MS:60000}

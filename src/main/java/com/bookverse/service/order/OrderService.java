@@ -25,6 +25,8 @@ public interface OrderService {
 
     OrderResponseDTO getOrder(Long currentUserId, UserRole currentUserRole, Long orderId);
 
+    OrderResponseDTO trackGuestOrder(String email, String orderCode, String guestToken);
+
     OrderResponseDTO cancelPendingOrder(Long currentUserId, Long orderId);
 
     OrderResponseDTO updateStatus(Long adminUserId, Long orderId, UpdateOrderStatusRequestDTO request);

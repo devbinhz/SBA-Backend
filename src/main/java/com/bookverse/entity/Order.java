@@ -48,6 +48,12 @@ public class Order extends BaseEntity {
     @Column(name = "guest_email")
     private String guestEmail;
 
+    @Column(name = "order_code", unique = true, length = 20)
+    private String orderCode;
+
+    @Column(name = "guest_token", length = 20)
+    private String guestToken;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Default

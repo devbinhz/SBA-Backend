@@ -33,8 +33,10 @@ import com.bookverse.service.checkout.CheckoutService;
 import com.bookverse.service.payment.PaymentService;
 import com.bookverse.service.voucher.VoucherService;
 import com.bookverse.enums.VoucherStatus;
+import com.bookverse.integration.mail.MailService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.concurrent.CompletableFuture;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -63,6 +65,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final VoucherService voucherService;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transactionTemplate;
+    private final MailService mailService;
 
     @Override
     public CheckoutResponseDTO checkout(Long userId, String idempotencyKey, CheckoutRequestDTO request, String clientIp) {
@@ -270,6 +273,13 @@ public class PaymentServiceImpl implements PaymentService {
         // Award voucher
         if (order.getUser() != null) {
             voucherService.awardVoucherToUser(order.getUser().getId(), order.getTotal());
+        } else if (order.getGuestEmail() != null) {
+            String guestEmail = order.getGuestEmail();
+            String orderCode = order.getOrderCode();
+            String guestToken = order.getGuestToken();
+            CompletableFuture.runAsync(() -> {
+                mailService.sendGuestOrderPaymentSuccessEmail(guestEmail, orderCode, guestToken);
+            });
         }
     }
 

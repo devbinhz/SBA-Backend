@@ -303,3 +303,43 @@ FROM (
     GROUP BY oi.book_id
 ) delivered
 WHERE b.id = delivered.book_id;
+
+-- Add a Guest Order for testing Guest Checkout features
+INSERT INTO orders (user_id, guest_email, order_code, guest_token, status, subtotal, shipping_fee, discount_amount, total, address_snapshot, payment_method, idempotency_key, created_at, updated_at, paid_at)
+VALUES (
+    NULL,
+    'guest@bookverse.local',
+    'ORD-GUEST-1',
+    'GUEST1',
+    'PAID',
+    150000,
+    30000,
+    0,
+    180000,
+    '{"city": "Hanoi", "line": "12 Guest St", "ward": "Ward 2", "phone": "0911223344", "district": "Hoan Kiem", "recipient": "Guest User"}',
+    'VNPAY',
+    'idempotency-key-seeded-guest-1',
+    now(),
+    now(),
+    now()
+);
+
+INSERT INTO order_items (order_id, book_id, title_snapshot, unit_price, quantity, line_total)
+VALUES (
+    (SELECT currval(pg_get_serial_sequence('orders', 'id'))),
+    (SELECT id FROM books WHERE isbn = '9780300273601'),
+    'Attacking the Elites',
+    150000,
+    1,
+    150000
+);
+
+INSERT INTO payments (order_id, provider, status, amount, provider_order_code, transaction_id, paid_at, created_at, updated_at)
+SELECT id, 'VNPAY', 'PAID', total, id * 1000 + 1, 'DEMO-GUEST-' || id, paid_at, now(), now()
+FROM orders
+WHERE idempotency_key = 'idempotency-key-seeded-guest-1';
+
+INSERT INTO order_status_history (order_id, from_status, to_status, changed_by, note, created_at)
+SELECT id, NULL, status, NULL, 'Created by deterministic demo seed (Guest)', now()
+FROM orders
+WHERE idempotency_key = 'idempotency-key-seeded-guest-1';

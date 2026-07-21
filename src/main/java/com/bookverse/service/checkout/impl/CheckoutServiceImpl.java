@@ -45,8 +45,11 @@ import com.bookverse.entity.UserVoucher;
 import com.bookverse.enums.VoucherStatus;
 import com.bookverse.enums.DiscountType;
 import com.bookverse.enums.DeliveryType;
+import com.bookverse.integration.mail.MailService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.concurrent.CompletableFuture;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -78,6 +81,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final UserVoucherRepository userVoucherRepository;
     private final OrderProperties orderProperties;
     private final ObjectMapper objectMapper;
+    private final MailService mailService;
 
     @Override
     @Transactional(readOnly = true)
@@ -198,8 +202,6 @@ public class CheckoutServiceImpl implements CheckoutService {
     @Transactional
     public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request) {
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
-        // Guest email is optional: "guestEmail = null" never matches in SQL, so retries
-        // from anonymous guests need a dedicated null-safe lookup to stay idempotent.
         var existingOrder = request.getEmail() != null
                 ? orderRepository.findByGuestEmailAndIdempotencyKey(request.getEmail(), normalizedKey)
                 : orderRepository.findByIdempotencyKeyAndUserIsNullAndGuestEmailIsNull(normalizedKey);
@@ -223,10 +225,14 @@ public class CheckoutServiceImpl implements CheckoutService {
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
         PaymentProvider paymentMethod = request.getPaymentMethod();
+        String orderCode = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        String guestToken = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
 
         Order order = Order.builder()
                 .user(null)
                 .guestEmail(request.getEmail())
+                .orderCode(orderCode)
+                .guestToken(guestToken)
                 .status(OrderStatus.PENDING_PAYMENT)
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
@@ -262,6 +268,13 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         if (paymentMethod == PaymentProvider.COD) {
             confirmCodOrder(order, null);
+        }
+
+        if (request.getEmail() != null) {
+            String finalEmail = request.getEmail();
+            CompletableFuture.runAsync(() -> {
+                mailService.sendGuestOrderConfirmationEmail(finalEmail, orderCode, guestToken);
+            });
         }
 
         return toCheckoutResponse(order, payment, orderItems);

@@ -1,5 +1,8 @@
 package com.bookverse.config;
 
+import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpMethod.POST;
+
 import com.bookverse.security.CustomUserDetailsService;
 import com.bookverse.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
@@ -58,16 +61,17 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/categories").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/banners").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}/reviews").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/books/{bookId}/reviews/summary").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/orders/guest/preview").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/orders/guest").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/payments/vnpay/webhook").permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/payments/vnpay/webhook").permitAll()
+                        .requestMatchers(GET, "/api/v1/categories").permitAll()
+                        .requestMatchers(GET, "/api/v1/banners").permitAll()
+                        .requestMatchers(GET, "/api/v1/books").permitAll()
+                        .requestMatchers(GET, "/api/v1/books/{bookId}").permitAll()
+                        .requestMatchers(GET, "/api/v1/books/{bookId}/reviews").permitAll()
+                        .requestMatchers(GET, "/api/v1/books/{bookId}/reviews/summary").permitAll()
+                        .requestMatchers(POST, "/api/v1/orders/guest/preview").permitAll()
+                        .requestMatchers(POST, "/api/v1/orders/guest").permitAll()
+                        .requestMatchers(GET, "/api/v1/payments/vnpay/webhook").permitAll()
+                        .requestMatchers(POST, "/api/v1/payments/vnpay/webhook").permitAll()
+                        .requestMatchers(GET, "/api/v1/orders/guest/track").permitAll()
                         // Any other request needs authentication
                         .anyRequest().authenticated()
                 )

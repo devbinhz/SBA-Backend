@@ -99,6 +99,16 @@ public class OrderController {
         );
     }
 
+    @GetMapping("/guest/track")
+    @Operation(summary = "Track guest order details")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Guest order returned")
+    public ApiResponse<OrderResponseDTO> trackGuestOrder(
+            @RequestParam String email,
+            @RequestParam String code,
+            @RequestParam String token) {
+        return ApiResponse.success(orderService.trackGuestOrder(email, code, token));
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
     @Operation(summary = "List current customer orders or admin filtered orders")
