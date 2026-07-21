@@ -235,14 +235,18 @@ class CheckoutServiceImplTest {
         CheckoutRequestDTO giftRequest = request();
         giftRequest.setDeliveryType(DeliveryType.GIFT);
 
+        long beforeMillis = System.currentTimeMillis();
         var response = checkoutService.checkout(1L, " key-1 ", giftRequest);
+        long afterMillis = System.currentTimeMillis();
 
         var orderCaptor = forClass(Order.class);
         var paymentCaptor = forClass(Payment.class);
         assertThat(response.getOrderId()).isEqualTo(1001L);
         assertThat(response.getPaymentId()).isEqualTo(501L);
         assertThat(response.getPaymentStatus()).isEqualTo(PaymentStatus.PENDING);
-        assertThat(response.getProviderOrderCode()).isEqualTo(1001001L);
+        // providerOrderCode = currentTimeMillis * 100 + (orderId % 100); orderId 1001 -> low digits "01".
+        assertThat(response.getProviderOrderCode() % 100).isEqualTo(1L);
+        assertThat(response.getProviderOrderCode() / 100).isBetween(beforeMillis, afterMillis);
         assertThat(response.getCheckoutUrl()).isNull();
         verify(orderRepository).saveAndFlush(orderCaptor.capture());
         verify(paymentRepository).save(paymentCaptor.capture());
@@ -255,11 +259,55 @@ class CheckoutServiceImplTest {
         assertThat(orderCaptor.getValue().getGiftWrapFee()).isEqualTo(10_000L);
         assertThat(paymentCaptor.getValue().getProvider()).isEqualTo(PaymentProvider.VNPAY);
         assertThat(paymentCaptor.getValue().getAmount()).isEqualTo(540_000L);
-        assertThat(paymentCaptor.getValue().getProviderOrderCode()).isEqualTo(1001001L);
+        assertThat(paymentCaptor.getValue().getProviderOrderCode()).isEqualTo(response.getProviderOrderCode());
         verify(bookRepository).holdStock(10L, 2);
         verify(stockMovementRepository).saveAll(any());
         verify(orderStatusHistoryRepository).save(any());
         verify(cartItemRepository).deleteByCartIdAndIdIn(9L, List.of(3L));
+    }
+
+    @Test
+    void checkoutWithCodConfirmsOrderToPaidImmediately() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        Book book = book(250000, 5);
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book).quantity(2).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(orderRepository.findByUserIdAndIdempotencyKey(1L, "cod-key")).thenReturn(Optional.empty());
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        when(bookRepository.holdStock(10L, 2)).thenReturn(1);
+        when(orderRepository.saveAndFlush(any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            order.setId(1003L);
+            return order;
+        });
+        when(orderItemRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CheckoutRequestDTO codRequest = request();
+        codRequest.setPaymentMethod(PaymentProvider.COD);
+
+        var response = checkoutService.checkout(1L, "cod-key", codRequest);
+
+        var orderCaptor = forClass(Order.class);
+        var paymentCaptor = forClass(Payment.class);
+        verify(orderRepository).saveAndFlush(orderCaptor.capture());
+        verify(paymentRepository).save(paymentCaptor.capture());
+
+        assertThat(response.getPaymentMethod()).isEqualTo(PaymentProvider.COD);
+        assertThat(response.getOrderStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(response.getPaymentStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(orderCaptor.getValue().getPaymentMethod()).isEqualTo(PaymentProvider.COD);
+        assertThat(paymentCaptor.getValue().getProvider()).isEqualTo(PaymentProvider.COD);
+        assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
+        // Order mutated in-place to PAID after the initial PENDING_PAYMENT save/flush.
+        assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.PAID);
+        assertThat(orderCaptor.getValue().getPaidAt()).isNotNull();
+        assertThat(orderCaptor.getValue().getExpiresAt()).isNull();
+        verify(orderStatusHistoryRepository, org.mockito.Mockito.times(2)).save(any());
     }
 
     @Test

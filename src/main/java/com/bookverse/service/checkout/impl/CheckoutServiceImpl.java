@@ -148,6 +148,8 @@ public class CheckoutServiceImpl implements CheckoutService {
         long total = Math.max(0L, subtotal - discountAmount + shippingFee + giftWrapFee);
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
+        PaymentProvider paymentMethod = request.getPaymentMethod();
+
         Order order = Order.builder()
                 .user(user)
                 .status(OrderStatus.PENDING_PAYMENT)
@@ -159,7 +161,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .userVoucher(userVoucher)
                 .total(total)
                 .addressSnapshot(addressSnapshot(address))
-                .paymentMethod(PaymentProvider.VNPAY)
+                .paymentMethod(paymentMethod)
                 .idempotencyKey(normalizedKey)
                 .expiresAt(expiresAt)
                 .build();
@@ -169,7 +171,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         List<OrderItem> orderItems = saveOrderItems(order, lines);
         Payment payment = paymentRepository.save(Payment.builder()
                 .order(order)
-                .provider(PaymentProvider.VNPAY)
+                .provider(paymentMethod)
                 .status(PaymentStatus.PENDING)
                 .amount(order.getTotal())
                 .providerOrderCode(System.currentTimeMillis() * 100 + (order.getId() % 100))
@@ -182,6 +184,10 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .changedBy(user)
                 .note("Order created from checkout")
                 .build());
+
+        if (paymentMethod == PaymentProvider.COD) {
+            confirmCodOrder(order, user);
+        }
 
         cartItemRepository.deleteByCartIdAndIdIn(cart.getId(), List.copyOf(selectedCartItemIds));
 
@@ -216,6 +222,8 @@ public class CheckoutServiceImpl implements CheckoutService {
         long total = Math.max(0L, subtotal + shippingFee + giftWrapFee); // No discount for guests
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
+        PaymentProvider paymentMethod = request.getPaymentMethod();
+
         Order order = Order.builder()
                 .user(null)
                 .guestEmail(request.getEmail())
@@ -228,7 +236,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .userVoucher(null)
                 .total(total)
                 .addressSnapshot(addressSnapshot(request))
-                .paymentMethod(PaymentProvider.VNPAY)
+                .paymentMethod(paymentMethod)
                 .idempotencyKey(normalizedKey)
                 .expiresAt(expiresAt)
                 .build();
@@ -238,7 +246,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         List<OrderItem> orderItems = saveOrderItems(order, lines);
         Payment payment = paymentRepository.save(Payment.builder()
                 .order(order)
-                .provider(PaymentProvider.VNPAY)
+                .provider(paymentMethod)
                 .status(PaymentStatus.PENDING)
                 .amount(order.getTotal())
                 .providerOrderCode(System.currentTimeMillis() * 100 + (order.getId() % 100))
@@ -252,7 +260,24 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .note("Guest order created from checkout")
                 .build());
 
+        if (paymentMethod == PaymentProvider.COD) {
+            confirmCodOrder(order, null);
+        }
+
         return toCheckoutResponse(order, payment, orderItems);
+    }
+
+    private void confirmCodOrder(Order order, User changedBy) {
+        order.setStatus(OrderStatus.PAID);
+        order.setPaidAt(Instant.now());
+        order.setExpiresAt(null);
+        orderStatusHistoryRepository.save(OrderStatusHistory.builder()
+                .order(order)
+                .fromStatus(OrderStatus.PENDING_PAYMENT)
+                .toStatus(OrderStatus.PAID)
+                .changedBy(changedBy)
+                .note("COD order confirmed automatically; no online payment required")
+                .build());
     }
 
     private Order saveOrder(Order order) {
@@ -476,6 +501,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .paymentId(payment.getId())
                 .orderStatus(order.getStatus())
                 .paymentStatus(payment.getStatus())
+                .paymentMethod(order.getPaymentMethod())
                 .subtotal(order.getSubtotal())
                 .shippingFee(order.getShippingFee())
                 .deliveryType(order.getDeliveryType())

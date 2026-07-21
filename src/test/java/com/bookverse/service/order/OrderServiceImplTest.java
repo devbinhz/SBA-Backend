@@ -301,6 +301,44 @@ class OrderServiceImplTest {
                 .isInstanceOf(ConflictException.class);
     }
 
+    @Test
+    void deliveredMarksCodPaymentAsCollected() {
+        Order order = order(1001L, customer(1L), OrderStatus.SHIPPED);
+        Book book = Book.builder().id(10L).title("Clean Code").build();
+        Payment codPayment = Payment.builder().id(501L).order(order).provider(PaymentProvider.COD).status(PaymentStatus.PENDING).build();
+        when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(1001L))
+                .thenReturn(List.of(OrderItem.builder().id(1L).order(order).book(book).quantity(1).unitPrice(100L).lineTotal(100L).titleSnapshot("Clean Code").build()));
+        when(bookRepository.incrementSoldCountAtomic(10L, 1)).thenReturn(1);
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(codPayment));
+
+        orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.DELIVERED)
+                .build());
+
+        assertThat(codPayment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(codPayment.getPaidAt()).isNotNull();
+        verify(paymentRepository).save(codPayment);
+    }
+
+    @Test
+    void deliveredDoesNotTouchVnpayPayment() {
+        Order order = order(1001L, customer(1L), OrderStatus.SHIPPED);
+        Book book = Book.builder().id(10L).title("Clean Code").build();
+        Payment vnpayPayment = Payment.builder().id(502L).order(order).provider(PaymentProvider.VNPAY).status(PaymentStatus.PAID).build();
+        when(orderRepository.findWithLockById(1001L)).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderIdOrderByIdAsc(1001L))
+                .thenReturn(List.of(OrderItem.builder().id(1L).order(order).book(book).quantity(1).unitPrice(100L).lineTotal(100L).titleSnapshot("Clean Code").build()));
+        when(bookRepository.incrementSoldCountAtomic(10L, 1)).thenReturn(1);
+        when(paymentRepository.findByOrderId(1001L)).thenReturn(Optional.of(vnpayPayment));
+
+        orderService.updateStatus(99L, 1001L, UpdateOrderStatusRequestDTO.builder()
+                .status(OrderStatus.DELIVERED)
+                .build());
+
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
+
     private Order order(Long id, User user, OrderStatus status) {
         return Order.builder()
                 .id(id)

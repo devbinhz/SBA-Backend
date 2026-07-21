@@ -13,6 +13,7 @@ import com.bookverse.entity.PaymentEvent;
 import com.bookverse.entity.User;
 import com.bookverse.entity.UserVoucher;
 import com.bookverse.enums.OrderStatus;
+import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.VoucherStatus;
 import com.bookverse.integration.payment.PaymentGateway;
@@ -103,6 +104,27 @@ class PaymentServiceImplTest {
         assertThat(payment.getProviderPaymentLinkId()).isEqualTo("1001001");
         verify(paymentGateway).createCheckoutLink(any());
         verify(paymentRepository).save(payment);
+    }
+
+    @Test
+    void checkoutSkipsVnpayLinkCreationForCod() {
+        CheckoutRequestDTO request = new CheckoutRequestDTO();
+        request.setPaymentMethod(PaymentProvider.COD);
+        CheckoutResponseDTO codResponse = CheckoutResponseDTO.builder()
+                .orderId(1001L)
+                .paymentId(501L)
+                .paymentStatus(PaymentStatus.PENDING)
+                .paymentMethod(PaymentProvider.COD)
+                .providerOrderCode(1001001L)
+                .total(530000L)
+                .build();
+        when(checkoutService.checkout(1L, "key-1", request)).thenReturn(codResponse);
+
+        CheckoutResponseDTO response = paymentService.checkout(1L, "key-1", request, "127.0.0.1");
+
+        assertThat(response.getCheckoutUrl()).isNull();
+        assertThat(response).isSameAs(codResponse);
+        verify(paymentGateway, never()).createCheckoutLink(any());
     }
 
     @Test
@@ -366,6 +388,7 @@ class PaymentServiceImplTest {
                 .orderId(1001L)
                 .paymentId(501L)
                 .paymentStatus(PaymentStatus.PENDING)
+                .paymentMethod(PaymentProvider.VNPAY)
                 .providerOrderCode(1001001L)
                 .total(530000L)
                 .expiresAt(Instant.now().plusSeconds(900))

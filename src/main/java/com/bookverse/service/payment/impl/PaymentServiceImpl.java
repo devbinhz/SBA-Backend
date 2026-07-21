@@ -67,7 +67,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public CheckoutResponseDTO checkout(Long userId, String idempotencyKey, CheckoutRequestDTO request, String clientIp) {
         CheckoutResponseDTO response = checkoutService.checkout(userId, idempotencyKey, request);
-        if (response.getCheckoutUrl() != null || response.getPaymentStatus() != PaymentStatus.PENDING) {
+        if (response.getPaymentMethod() != PaymentProvider.VNPAY
+                || response.getCheckoutUrl() != null
+                || response.getPaymentStatus() != PaymentStatus.PENDING) {
             return response;
         }
 
@@ -127,7 +129,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public CheckoutResponseDTO checkoutGuest(String idempotencyKey, GuestCheckoutRequestDTO request, String clientIp) {
         CheckoutResponseDTO response = checkoutService.checkoutGuest(idempotencyKey, request);
-        if (response.getCheckoutUrl() != null || response.getPaymentStatus() != PaymentStatus.PENDING) {
+        if (response.getPaymentMethod() != PaymentProvider.VNPAY
+                || response.getCheckoutUrl() != null
+                || response.getPaymentStatus() != PaymentStatus.PENDING) {
             return response;
         }
 

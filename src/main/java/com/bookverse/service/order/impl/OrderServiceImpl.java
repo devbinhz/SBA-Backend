@@ -16,6 +16,7 @@ import com.bookverse.entity.Payment;
 import com.bookverse.entity.StockMovement;
 import com.bookverse.entity.User;
 import com.bookverse.enums.OrderStatus;
+import com.bookverse.enums.PaymentProvider;
 import com.bookverse.enums.PaymentStatus;
 import com.bookverse.enums.StockMovementReason;
 import com.bookverse.enums.UserRole;
@@ -149,6 +150,7 @@ public class OrderServiceImpl implements OrderService {
         transition(order, next, request.getNote(), adminUserId);
         if (next == OrderStatus.DELIVERED) {
             incrementSoldCountOnce(order);
+            markCodPaymentCollected(order);
         }
         return toDetail(order);
     }
@@ -263,6 +265,15 @@ public class OrderServiceImpl implements OrderService {
                     .note(note)
                     .createdBy(order.getUser() != null ? order.getUser().getId() : null)
                     .build());
+        }
+    }
+
+    private void markCodPaymentCollected(Order order) {
+        Payment payment = paymentRepository.findByOrderId(order.getId()).orElse(null);
+        if (payment != null && payment.getProvider() == PaymentProvider.COD && payment.getStatus() == PaymentStatus.PENDING) {
+            payment.setStatus(PaymentStatus.PAID);
+            payment.setPaidAt(Instant.now());
+            paymentRepository.save(payment);
         }
     }
 

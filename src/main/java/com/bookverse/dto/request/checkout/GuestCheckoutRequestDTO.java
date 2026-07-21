@@ -1,6 +1,7 @@
 package com.bookverse.dto.request.checkout;
 
 import com.bookverse.enums.DeliveryType;
+import com.bookverse.enums.PaymentProvider;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -38,4 +39,7 @@ public class GuestCheckoutRequestDTO {
 
     @NotNull(message = "Delivery type is required")
     private DeliveryType deliveryType = DeliveryType.SELF;
+
+    @NotNull(message = "Payment method is required")
+    private PaymentProvider paymentMethod = PaymentProvider.VNPAY;
 }
