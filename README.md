@@ -13,6 +13,26 @@ docker compose up -d
 
 API docs available at `http://localhost:8080/swagger-ui.html` after startup.
 
+## MinIO setup (required before first run)
+
+`docker compose up -d` starts MinIO, but the backend does **not** create buckets on its own — `MinioConfig` only builds a client and expects `bookverse-books` / `bookverse-thumbnails` to already exist. On a new machine, after MinIO is up, run once:
+
+```bash
+python scripts/set_minio_policy.py
+```
+
+This creates the `bookverse-thumbnails` bucket (used for book covers, banners, and gift-wrap images) and sets a public-read policy on it, so `imageUrl` values returned by the API are directly loadable in a browser. Requires Python with the `minio` package (`pip install minio`), and reads endpoint/credentials from `.env`.
+
+Then seed the gift-wrap pattern images (kraft, floral, checker, metallic — referenced by `db/seed/06_gift_wraps.sql`):
+
+```powershell
+./scripts/seed-gift-wrap-images.ps1
+```
+
+This script only needs Docker (no Python/uv) — it runs the official `minio/mc` image against the running `bookverse-minio` container to create the bucket (if `set_minio_policy.py` wasn't run yet), set the public-read policy, and upload the four images from `assets/gift-wrap/`. Re-running it is safe (idempotent overwrite).
+
+Book cover/PDF assets follow the same pattern via `scripts/seed-minio.ps1`, but that script requires `uv` + the `rag` Python project and local files under `rag/assets/books` (gitignored — populate it yourself; not bundled in the repo).
+
 ## Local database modes
 
 On a new machine, run the reset profile once to create and seed the demo dataset. Normal development then keeps existing users, orders, payments, and inventory logs:
@@ -74,6 +94,7 @@ docker compose exec -T postgres psql -U bookverse -d bookverse \
 - **Payments** — VNPAY integration with webhook handling
 - **Reviews** — per-book ratings and comments; admin moderation with history
 - **Vouchers** — discount codes (percentage or fixed); admin management
+- **Gift Wrap** — catalog of wrap-paper patterns with per-pattern image and fee; customer picks one at checkout, admin manages the catalog
 - **Addresses** — multiple delivery addresses with default selection
 - **AI Chat & Recommendations** — conversational book search using RAG; per-user chat sessions
 - **RAG Management** — admin ingest/delete book content into vector store; bulk operations
@@ -96,6 +117,7 @@ Base URL: `/api/v1`
 | Payments | `/payments` | VNPAY webhook | — |
 | Reviews | `/books/{id}/reviews` | GET list & summary | `CUSTOMER` for write |
 | Vouchers | `/vouchers` | — | `CUSTOMER`, `ADMIN` |
+| Gift Wraps | `/gift-wraps` | GET list | `ADMIN` for write |
 | AI Chat | `/ai` | — | `CUSTOMER`, `ADMIN` |
 | Admin AI Usage | `/admin/ai/usage` | — | `ADMIN` |
 | Admin RAG | `/admin/rag` | — | `ADMIN` |

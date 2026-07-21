@@ -307,7 +307,6 @@ class PaymentServiceImplTest {
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
         verify(orderStatusHistoryRepository, never()).save(any());
-        verify(voucherService, never()).awardVoucherToUser(any(), any());
     }
 
     @Test

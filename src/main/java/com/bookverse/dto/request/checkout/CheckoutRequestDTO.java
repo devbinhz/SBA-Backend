@@ -22,6 +22,8 @@ public class CheckoutRequestDTO {
     @NotNull(message = "Delivery type is required")
     private DeliveryType deliveryType = DeliveryType.SELF;
 
+    private Long giftWrapId;
+
     @NotNull(message = "Payment method is required")
     private PaymentProvider paymentMethod = PaymentProvider.VNPAY;
 }

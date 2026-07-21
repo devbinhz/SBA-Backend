@@ -19,6 +19,7 @@ import com.bookverse.entity.Address;
 import com.bookverse.entity.Book;
 import com.bookverse.entity.Cart;
 import com.bookverse.entity.CartItem;
+import com.bookverse.entity.GiftWrap;
 import com.bookverse.entity.Order;
 import com.bookverse.entity.OrderItem;
 import com.bookverse.entity.OrderStatusHistory;
@@ -46,6 +47,7 @@ import com.bookverse.enums.UserVoucherStatus;
 import com.bookverse.enums.DiscountType;
 import com.bookverse.enums.DeliveryType;
 import com.bookverse.integration.mail.MailService;
+import com.bookverse.service.giftwrap.GiftWrapService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.concurrent.CompletableFuture;
@@ -82,6 +84,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     private final OrderProperties orderProperties;
     private final ObjectMapper objectMapper;
     private final MailService mailService;
+    private final GiftWrapService giftWrapService;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,7 +98,7 @@ public class CheckoutServiceImpl implements CheckoutService {
         List<CheckoutLine> lines = validateAndPrice(cartItems);
         long subtotal = subtotal(lines);
         long discountAmount = calculateDiscount(user.getId(), request.getUserVoucherId(), subtotal);
-        return toPreview(lines, discountAmount, request.getDeliveryType());
+        return toPreview(lines, discountAmount, request.getDeliveryType(), request.getGiftWrapId());
     }
 
     @Override
@@ -103,7 +106,7 @@ public class CheckoutServiceImpl implements CheckoutService {
     public CheckoutPreviewResponseDTO previewGuest(GuestCheckoutRequestDTO request) {
         List<CheckoutLine> lines = validateAndPriceDTO(request.getItems());
         long subtotal = subtotal(lines);
-        return toPreview(lines, 0L, request.getDeliveryType());
+        return toPreview(lines, 0L, request.getDeliveryType(), request.getGiftWrapId());
     }
 
     @Override
@@ -148,7 +151,8 @@ public class CheckoutServiceImpl implements CheckoutService {
 
         long shippingFee = orderProperties.shippingFeeVnd();
         DeliveryType deliveryType = request.getDeliveryType();
-        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        GiftWrap giftWrap = resolveGiftWrap(deliveryType, request.getGiftWrapId());
+        long giftWrapFee = giftWrap != null ? giftWrap.getFeeVnd() : 0L;
         long total = Math.max(0L, subtotal - discountAmount + shippingFee + giftWrapFee);
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
@@ -161,6 +165,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .shippingFee(shippingFee)
                 .deliveryType(deliveryType)
                 .giftWrapFee(giftWrapFee)
+                .giftWrap(giftWrap)
                 .discountAmount(discountAmount)
                 .userVoucher(userVoucher)
                 .total(total)
@@ -220,7 +225,8 @@ public class CheckoutServiceImpl implements CheckoutService {
         long subtotal = subtotal(lines);
         long shippingFee = orderProperties.shippingFeeVnd();
         DeliveryType deliveryType = request.getDeliveryType();
-        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        GiftWrap giftWrap = resolveGiftWrap(deliveryType, request.getGiftWrapId());
+        long giftWrapFee = giftWrap != null ? giftWrap.getFeeVnd() : 0L;
         long total = Math.max(0L, subtotal + shippingFee + giftWrapFee); // No discount for guests
         Instant expiresAt = Instant.now().plusSeconds(orderProperties.expirationMinutes() * 60);
 
@@ -238,6 +244,7 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .shippingFee(shippingFee)
                 .deliveryType(deliveryType)
                 .giftWrapFee(giftWrapFee)
+                .giftWrap(giftWrap)
                 .discountAmount(0L)
                 .userVoucher(null)
                 .total(total)
@@ -484,21 +491,35 @@ public class CheckoutServiceImpl implements CheckoutService {
     private CheckoutPreviewResponseDTO toPreview(
             List<CheckoutLine> lines,
             long discountAmount,
-            DeliveryType deliveryType
+            DeliveryType deliveryType,
+            Long giftWrapId
     ) {
         long subtotal = subtotal(lines);
         long shippingFee = orderProperties.shippingFeeVnd();
-        long giftWrapFee = deliveryType.giftWrapFeeVnd();
+        GiftWrap giftWrap = resolveGiftWrap(deliveryType, giftWrapId);
+        long giftWrapFee = giftWrap != null ? giftWrap.getFeeVnd() : 0L;
         long total = Math.max(0L, subtotal - discountAmount + shippingFee + giftWrapFee);
         return CheckoutPreviewResponseDTO.builder()
                 .subtotal(subtotal)
                 .shippingFee(shippingFee)
                 .deliveryType(deliveryType)
                 .giftWrapFee(giftWrapFee)
+                .giftWrapId(giftWrap != null ? giftWrap.getId() : null)
+                .giftWrapName(giftWrap != null ? giftWrap.getName() : null)
                 .discountAmount(discountAmount)
                 .total(total)
                 .items(lines.stream().map(this::toItemResponse).toList())
                 .build();
+    }
+
+    private GiftWrap resolveGiftWrap(DeliveryType deliveryType, Long giftWrapId) {
+        if (deliveryType != DeliveryType.GIFT) {
+            return null;
+        }
+        if (giftWrapId == null) {
+            throw new BadRequestException("Gift wrap selection is required for GIFT delivery type");
+        }
+        return giftWrapService.getActiveGiftWrapOrThrow(giftWrapId);
     }
 
     private CheckoutResponseDTO existingCheckoutResponse(Order order) {
@@ -519,6 +540,8 @@ public class CheckoutServiceImpl implements CheckoutService {
                 .shippingFee(order.getShippingFee())
                 .deliveryType(order.getDeliveryType())
                 .giftWrapFee(order.getGiftWrapFee())
+                .giftWrapId(order.getGiftWrap() != null ? order.getGiftWrap().getId() : null)
+                .giftWrapName(order.getGiftWrap() != null ? order.getGiftWrap().getName() : null)
                 .discountAmount(order.getDiscountAmount())
                 .total(order.getTotal())
                 .providerOrderCode(payment.getProviderOrderCode())

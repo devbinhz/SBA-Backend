@@ -11,6 +11,7 @@ import com.bookverse.entity.Book;
 import com.bookverse.entity.Cart;
 import com.bookverse.entity.CartItem;
 import com.bookverse.entity.Category;
+import com.bookverse.entity.GiftWrap;
 import com.bookverse.entity.Order;
 import com.bookverse.entity.Payment;
 import com.bookverse.entity.User;
@@ -37,6 +38,7 @@ import com.bookverse.repository.StockMovementRepository;
 import com.bookverse.repository.UserRepository;
 import com.bookverse.repository.UserVoucherRepository;
 import com.bookverse.service.checkout.impl.CheckoutServiceImpl;
+import com.bookverse.service.giftwrap.GiftWrapService;
 import com.bookverse.integration.mail.MailService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,7 +75,10 @@ class CheckoutServiceImplTest {
     private UserVoucherRepository userVoucherRepository;
     private OrderProperties orderProperties;
     private MailService mailService;
+    private GiftWrapService giftWrapService;
     private CheckoutServiceImpl checkoutService;
+
+    private static final long GIFT_WRAP_ID = 99L;
 
     @BeforeEach
     void setUp() {
@@ -90,6 +95,15 @@ class CheckoutServiceImplTest {
         userVoucherRepository = mock(UserVoucherRepository.class);
         orderProperties = new OrderProperties(30000L, 15);
         mailService = mock(MailService.class);
+        giftWrapService = mock(GiftWrapService.class);
+        GiftWrap giftWrap = GiftWrap.builder()
+                .id(GIFT_WRAP_ID)
+                .name("Red Floral Wrap")
+                .imageKey("gift-wrap/red-floral.jpg")
+                .feeVnd(10_000L)
+                .active(true)
+                .build();
+        when(giftWrapService.getActiveGiftWrapOrThrow(GIFT_WRAP_ID)).thenReturn(giftWrap);
         checkoutService = new CheckoutServiceImpl(
                 userRepository,
                 addressRepository,
@@ -104,7 +118,8 @@ class CheckoutServiceImplTest {
                 userVoucherRepository,
                 orderProperties,
                 new ObjectMapper(),
-                mailService
+                mailService,
+                giftWrapService
         );
     }
 
@@ -141,12 +156,33 @@ class CheckoutServiceImplTest {
         when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
         CheckoutRequestDTO request = request();
         request.setDeliveryType(DeliveryType.GIFT);
+        request.setGiftWrapId(GIFT_WRAP_ID);
 
         var response = checkoutService.preview(1L, request);
 
         assertThat(response.getDeliveryType()).isEqualTo(DeliveryType.GIFT);
         assertThat(response.getGiftWrapFee()).isEqualTo(10_000L);
+        assertThat(response.getGiftWrapId()).isEqualTo(GIFT_WRAP_ID);
+        assertThat(response.getGiftWrapName()).isEqualTo("Red Floral Wrap");
         assertThat(response.getTotal()).isEqualTo(540_000L);
+    }
+
+    @Test
+    void previewRejectsGiftDeliveryWithoutGiftWrapSelection() {
+        User user = customer();
+        Address address = address(user);
+        Cart cart = Cart.builder().id(9L).user(user).build();
+        CartItem item = CartItem.builder().id(3L).cart(cart).book(book(250000, 5)).quantity(2).build();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(addressRepository.findByIdAndUserId(5L, 1L)).thenReturn(Optional.of(address));
+        when(cartRepository.findByUserId(1L)).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndIdInOrderByIdAsc(9L, List.of(3L))).thenReturn(List.of(item));
+        CheckoutRequestDTO request = request();
+        request.setDeliveryType(DeliveryType.GIFT);
+
+        assertThatThrownBy(() -> checkoutService.preview(1L, request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Gift wrap selection is required");
     }
 
     @Test
@@ -240,6 +276,7 @@ class CheckoutServiceImplTest {
 
         CheckoutRequestDTO giftRequest = request();
         giftRequest.setDeliveryType(DeliveryType.GIFT);
+        giftRequest.setGiftWrapId(GIFT_WRAP_ID);
 
         long beforeMillis = System.currentTimeMillis();
         var response = checkoutService.checkout(1L, " key-1 ", giftRequest);
@@ -260,9 +297,13 @@ class CheckoutServiceImplTest {
         assertThat(orderCaptor.getValue().getPaymentMethod()).isEqualTo(PaymentProvider.VNPAY);
         assertThat(response.getDeliveryType()).isEqualTo(DeliveryType.GIFT);
         assertThat(response.getGiftWrapFee()).isEqualTo(10_000L);
+        assertThat(response.getGiftWrapId()).isEqualTo(GIFT_WRAP_ID);
+        assertThat(response.getGiftWrapName()).isEqualTo("Red Floral Wrap");
         assertThat(response.getTotal()).isEqualTo(540_000L);
         assertThat(orderCaptor.getValue().getDeliveryType()).isEqualTo(DeliveryType.GIFT);
         assertThat(orderCaptor.getValue().getGiftWrapFee()).isEqualTo(10_000L);
+        assertThat(orderCaptor.getValue().getGiftWrap()).isNotNull();
+        assertThat(orderCaptor.getValue().getGiftWrap().getId()).isEqualTo(GIFT_WRAP_ID);
         assertThat(paymentCaptor.getValue().getProvider()).isEqualTo(PaymentProvider.VNPAY);
         assertThat(paymentCaptor.getValue().getAmount()).isEqualTo(540_000L);
         assertThat(paymentCaptor.getValue().getProviderOrderCode()).isEqualTo(response.getProviderOrderCode());
@@ -486,7 +527,7 @@ class CheckoutServiceImplTest {
                         .discountType(type)
                         .discountValue(value)
                         .minOrderValue(minimum)
-                        .active(true)
+                        .status(VoucherStatus.ACTIVE)
                         .build())
                 //.code("DEMO-0001")
                 .status(UserVoucherStatus.UNUSED)

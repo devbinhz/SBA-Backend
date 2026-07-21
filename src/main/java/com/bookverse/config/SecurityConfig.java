@@ -63,6 +63,7 @@ public class SecurityConfig {
                         ).permitAll()
                         .requestMatchers(GET, "/api/v1/categories").permitAll()
                         .requestMatchers(GET, "/api/v1/banners").permitAll()
+                        .requestMatchers(GET, "/api/v1/gift-wraps").permitAll()
                         .requestMatchers(GET, "/api/v1/books").permitAll()
                         .requestMatchers(GET, "/api/v1/books/{bookId}").permitAll()
                         .requestMatchers(GET, "/api/v1/books/{bookId}/reviews").permitAll()

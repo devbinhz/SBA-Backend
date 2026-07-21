@@ -26,6 +26,7 @@ spring:
         - classpath:db/seed/03_orders.sql
         - classpath:db/seed/04_reviews.sql
         - classpath:db/seed/05_vouchers.sql
+        - classpath:db/seed/06_gift_wraps.sql
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
