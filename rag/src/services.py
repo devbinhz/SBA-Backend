@@ -128,7 +128,7 @@ def _parse_xml_tool_calls(text: str) -> list[dict]:
 
 
 def _clean_history_content(text: str) -> str:
-    """Strip raw JSON wrapper or XML tool calls from history content so the LLM receives plain text."""
+    """Strip raw JSON wrapper, XML tool calls, and massive book descriptions from history content so the LLM receives plain text."""
     if not text:
         return ""
     import re
@@ -140,17 +140,51 @@ def _clean_history_content(text: str) -> str:
             match = re.search(r'"answer"\s*:\s*"((?:[^"\\]|\\.)*)"', text_str, re.DOTALL)
             if match:
                 extracted = match.group(1)
-                return extracted.replace('\\n', '\n').replace('\\"', '"')
-            parsed = json.loads(text_str)
-            if isinstance(parsed, dict) and "answer" in parsed:
-                return str(parsed["answer"])
+                text_str = extracted.replace('\\n', '\n').replace('\\"', '"')
+            else:
+                parsed = json.loads(text_str)
+                if isinstance(parsed, dict) and "answer" in parsed:
+                    text_str = str(parsed["answer"])
         except Exception:
             pass
         if text_str.startswith("{"):
             text_str = text_str.lstrip("{").rstrip("}").strip()
             if text_str.startswith('"answer":'):
                 text_str = text_str.replace('"answer":', '').strip().strip('"')
-    return text_str
+
+    # Prune description bullets and markdown tables to compress the history context
+    lines = text_str.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        stripped = line.strip()
+        lower_s = stripped.lower()
+        
+        # Drop lines starting with description keywords
+        if (lower_s.startswith("- *mô tả:*") or 
+            lower_s.startswith("- *description:*") or 
+            lower_s.startswith("*mô tả:*") or 
+            lower_s.startswith("*description:*") or
+            lower_s.startswith("mô tả:") or
+            lower_s.startswith("description:") or
+            "mô tả của cuốn sách" in lower_s or
+            lower_s.startswith("- mô tả:") or
+            lower_s.startswith("- description:") or
+            lower_s.startswith("* **mô tả:**") or
+            lower_s.startswith("* **description:**")):
+            continue
+            
+        # Clean markdown table rows (remove Description column if table has 3 columns)
+        if stripped.startswith('|') and stripped.endswith('|'):
+            parts = [p.strip() for p in stripped.split('|')]
+            if len(parts) >= 5: # has at least 3 content columns (first and last parts are empty)
+                # Keep only first 2 columns (Book Title and Author)
+                new_row = f"| {parts[1]} | {parts[2]} |"
+                cleaned_lines.append(new_row)
+                continue
+                
+        cleaned_lines.append(line)
+        
+    return '\n'.join(cleaned_lines)
 
 
 def _build_input_guard_note(query: str) -> str:
@@ -475,11 +509,19 @@ class OpenAIService:
             print(f"DEBUG [recommend_books]: API Key is missing!", flush=True)
             return "API Key is missing.", []
 
+        # Rewrite follow-up queries to be self-contained using history context
+        condensed_q = query
+        if history:
+            try:
+                condensed_q = self.condense_query(query, history)
+                print(f"DEBUG [recommend_books]: Condensed query rewritten from '{query}' to '{condensed_q}'", flush=True)
+            except Exception as cond_ex:
+                print(f"DEBUG [recommend_books] WARNING: Condense query failed: {cond_ex}", flush=True)
+
         if not books:
-            search_q = query
-            print(f"DEBUG [recommend_books]: Candidate books list is empty. Running keyword search fallback for '{search_q}'", flush=True)
+            print(f"DEBUG [recommend_books]: Candidate books list is empty. Running keyword search fallback for '{condensed_q}'", flush=True)
             from src.tools import _postgres_keyword_search
-            books = _postgres_keyword_search(search_q, limit=10)
+            books = _postgres_keyword_search(condensed_q, limit=5)
             print(f"DEBUG [recommend_books]: Keyword search fallback returned {len(books)} books", flush=True)
 
         system_prompt = (
@@ -544,8 +586,8 @@ class OpenAIService:
                 else:
                     lc_messages.append(AIMessage(content=clean_c))
 
-        guard_note = _build_input_guard_note(query)
-        lc_messages.append(HumanMessage(content=f"User query: {query}" + guard_note))
+        guard_note = _build_input_guard_note(condensed_q)
+        lc_messages.append(HumanMessage(content=f"User query: {condensed_q}" + guard_note))
         print(f"DEBUG [recommend_books]: system prompt & message sequence initialized.", flush=True)
 
         try:
@@ -615,6 +657,9 @@ class OpenAIService:
             if not raw_text:
                 print(f"DEBUG [recommend_books]: raw_text is empty. Appending final instruction to lc_messages to force synthesis...", flush=True)
                 synthesis_messages = list(lc_messages)
+                # Remove any trailing empty AIMessages with no tool calls to avoid confusing the LLM
+                while synthesis_messages and isinstance(synthesis_messages[-1], AIMessage) and not synthesis_messages[-1].content.strip() and not getattr(synthesis_messages[-1], "tool_calls", None):
+                    synthesis_messages.pop()
                 synthesis_messages.append(HumanMessage(content=(
                     "Based on the conversation history and the tool search results above, "
                     "please write your final response now. Do not call any tools. "
@@ -682,7 +727,7 @@ class OpenAIService:
             if not ans and books:
                 print(f"DEBUG [recommend_books]: Empty answer fallback to default books list.", flush=True)
                 ans = "Dựa trên nhu cầu của bạn, em xin gợi ý các cuốn sách sau:\n\n"
-                for b in books[:10]:
+                for b in books[:5]:
                     p_str = f" - {b.get('price'):,.0f} VND" if b.get('price') else ""
                     ans += f"- **{b.get('title', '')}** (ID: {b.get('id')}){p_str}\n"
 
@@ -702,7 +747,7 @@ class OpenAIService:
                 if matched_ids:
                     rec_ids = matched_ids
                 else:
-                    rec_ids = [int(b['id']) for b in books[:10] if isinstance(b, dict) and 'id' in b and b.get('id') is not None and str(b.get('id', '')).isdigit()]
+                    rec_ids = [int(b['id']) for b in books[:5] if isinstance(b, dict) and 'id' in b and b.get('id') is not None and str(b.get('id', '')).isdigit()]
                 print(f"DEBUG [recommend_books]: Title matching matched_ids={matched_ids}. Selected rec_ids={rec_ids}", flush=True)
 
             if ans:
@@ -715,9 +760,9 @@ class OpenAIService:
             traceback.print_exc()
 
         if books:
-            rec_ids = [int(b['id']) for b in books[:10] if isinstance(b, dict) and 'id' in b and str(b.get('id', '')).isdigit()]
+            rec_ids = [int(b['id']) for b in books[:5] if isinstance(b, dict) and 'id' in b and str(b.get('id', '')).isdigit()]
             ans = "Dựa trên nhu cầu của bạn, em xin gợi ý các cuốn sách sau:\n\n"
-            for b in books[:10]:
+            for b in books[:5]:
                 ans += f"- **{b.get('title', '')}**\n"
             print(f"DEBUG [recommend_books]: Fallback query answer returned.", flush=True)
             print(f"==================================================", flush=True)
