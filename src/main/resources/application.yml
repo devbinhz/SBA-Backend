@@ -77,7 +77,7 @@ bookverse:
   order:
     shipping-fee-vnd: ${SHIPPING_FEE_VND:30000}
     expiration-minutes: ${ORDER_EXPIRATION_MINUTES:15}
-    guest-track-url: ${GUEST_TRACK_URL:https://yourshop.com/orders/track}
+    guest-track-url: ${GUEST_TRACK_URL:https://sba-frontend-ten.vercel.app/orders/track}
   scheduler:
     expired-orders:
       fixed-delay-ms: ${EXPIRED_ORDER_SCHEDULER_FIXED_DELAY_MS:60000}
