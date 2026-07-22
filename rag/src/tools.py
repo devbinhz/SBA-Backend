@@ -102,6 +102,28 @@ DATABASE_TOOLS_DEFINITIONS = [
                 "required": ["search_text"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_postgres_sql",
+            "description": (
+                "Execute a read-only SQL SELECT query against the PostgreSQL database. "
+                "Use this tool when the user asks questions requiring database counts, statistics, aggregations, "
+                "joining multiple tables (e.g. books, categories, orders, order_items, reviews), or complex filtering not supported by other tools. "
+                "Always write clean standard SQL. Only SELECT queries are permitted."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql_query": {
+                        "type": "string",
+                        "description": "The exact read-only SQL SELECT query to execute (e.g. 'SELECT count(*) FROM books')."
+                    }
+                },
+                "required": ["sql_query"]
+            }
+        }
     }
 ]
 
@@ -359,6 +381,60 @@ def query_mongo(search_text: str, limit: int = 10) -> list[dict]:
         return []
 
 
+def query_postgres_sql(sql_query: str) -> list[dict]:
+    """Execute a read-only SQL SELECT query on the PostgreSQL database."""
+    print(f"DEBUG: query_postgres_sql executing: {sql_query}", flush=True)
+    cleaned = sql_query.strip().upper()
+    if not cleaned.startswith("SELECT"):
+        return [{"error": "Only SELECT statements are allowed."}]
+    
+    forbidden = ["INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", "ALTER", "CREATE", "GRANT", "REVOKE", "RENAME"]
+    import re
+    for keyword in forbidden:
+        if re.search(r'\b' + keyword + r'\b', cleaned):
+            return [{"error": f"Security violation: SQL query contains forbidden keyword '{keyword}'."}]
+            
+    try:
+        import psycopg2
+        import psycopg2.extras
+        import os
+
+        dsn = os.getenv("POSTGRES_URL") or "postgresql://{}:{}@{}:{}/{}".format(
+            os.getenv("POSTGRES_USER", "bookverse"),
+            os.getenv("POSTGRES_PASSWORD", "bookverse"),
+            os.getenv("POSTGRES_HOST", "postgres"),
+            os.getenv("POSTGRES_PORT", "5432"),
+            os.getenv("POSTGRES_DB", "bookverse"),
+        )
+        conn = psycopg2.connect(dsn)
+        
+        with conn.cursor() as setup_cur:
+            setup_cur.execute("SET statement_timeout = 5000;")
+            
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql_query)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        import decimal
+        import datetime
+        formatted_rows = []
+        for row in rows:
+            formatted_row = {}
+            for k, v in row.items():
+                if isinstance(v, decimal.Decimal):
+                    formatted_row[k] = float(v)
+                elif isinstance(v, (datetime.datetime, datetime.date)):
+                    formatted_row[k] = v.isoformat()
+                else:
+                    formatted_row[k] = v
+            formatted_rows.append(formatted_row)
+        return formatted_rows
+    except Exception as e:
+        return [{"error": f"SQL execution error: {e}"}]
+
+
 def execute_database_tool(tool_name: str, args: dict) -> list[dict]:
     """Dispatch a tool call to the appropriate function."""
     if tool_name == "rag_catalog":
@@ -367,6 +443,8 @@ def execute_database_tool(tool_name: str, args: dict) -> list[dict]:
         return query_postgres(**args)
     elif tool_name == "query_mongo":
         return query_mongo(**args)
+    elif tool_name == "query_postgres_sql":
+        return query_postgres_sql(**args)
     else:
         print(f"DEBUG execute_database_tool: unknown tool '{tool_name}'", flush=True)
         return []
