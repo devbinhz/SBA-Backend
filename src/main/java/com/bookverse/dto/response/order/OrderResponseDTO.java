@@ -25,6 +25,8 @@ public class OrderResponseDTO {
     private Long shippingFee;
     private DeliveryType deliveryType;
     private Long giftWrapFee;
+    private Long giftWrapId;
+    private String giftWrapName;
     private Long discountAmount;
     private Long total;
     private Object addressSnapshot;

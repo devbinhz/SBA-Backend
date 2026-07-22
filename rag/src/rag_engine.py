@@ -24,12 +24,31 @@ class RagEngine:
         history: list[Any] | None = None,
         top_k: int | None = None,
     ) -> QueryResponse:
+        # Normalize history to standard dict list format
+        normalized_history = []
+        if history:
+            for h in history:
+                r = h.get("role") if isinstance(h, dict) else getattr(h, "role", "user")
+                c = h.get("content") if isinstance(h, dict) else getattr(h, "content", "")
+                normalized_history.append({"role": r, "content": c})
+
+        # Rewrite follow-up queries using history context
+        condensed_query = query
+        if normalized_history:
+            try:
+                condensed_query = self.openai_service.condense_query(query, normalized_history)
+                print(f"DEBUG RAG_QUERY: Condensed query rewritten from '{query}' to '{condensed_query}'", flush=True)
+            except Exception as ex:
+                print(f"DEBUG RAG_QUERY WARNING: Condense query failed: {ex}", flush=True)
+
         limit = min(top_k or settings.default_top_k, settings.max_top_k)
-        vector = self.openai_service.embed_texts([query])[0]
+        vector = self.openai_service.embed_texts([condensed_query])[0]
         hits = self.store.search(vector=vector, limit=limit, book_ids=book_ids)
-        filtered_hits = [hit for hit in hits if hit.score >= 0.24]
+        filtered_hits = [hit for hit in hits if hit.score >= 0.20]
+        if not filtered_hits and hits:
+            filtered_hits = hits[:2]
         sources = [_source_from_hit(hit) for hit in filtered_hits]
-        answer, cited_sources, usage = self.openai_service.make_answer(query, sources, history, book_ids=book_ids)
+        answer, cited_sources, usage = self.openai_service.make_answer(condensed_query, sources, normalized_history, book_ids=book_ids)
         return QueryResponse(answer=answer, sources=cited_sources, usage=usage)
 
     def delete(self, book_id: int) -> int:

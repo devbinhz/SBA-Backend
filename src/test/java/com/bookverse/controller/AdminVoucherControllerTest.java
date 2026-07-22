@@ -4,7 +4,7 @@ import com.bookverse.common.dto.PageResponseDTO;
 import com.bookverse.dto.request.voucher.VoucherCreateRequestDTO;
 import com.bookverse.dto.response.voucher.AdminVoucherResponseDTO;
 import com.bookverse.enums.DiscountType;
-import com.bookverse.enums.UserVoucherStatus;
+import com.bookverse.enums.VoucherStatus;
 import com.bookverse.enums.UserRole;
 import com.bookverse.security.CustomUserDetailsService;
 import com.bookverse.security.JwtAuthenticationFilter;
@@ -39,9 +39,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(VoucherController.class)
+@WebMvcTest(AdminVoucherController.class)
 @ActiveProfiles("test")
-class VoucherControllerTest {
+class AdminVoucherControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -86,10 +86,15 @@ class VoucherControllerTest {
     @Test
     void createVoucher_Success() throws Exception {
         VoucherCreateRequestDTO request = new VoucherCreateRequestDTO();
+        request.setCode("DISCOUNT10");
         request.setName("Discount 10%");
         request.setDiscountType(DiscountType.PERCENTAGE);
         request.setDiscountValue(10L);
         request.setMinOrderValue(100_000L);
+        request.setTotalQuantity(100);
+        request.setStartTime(Instant.now());
+        request.setEndTime(Instant.now().plusSeconds(30 * 24 * 3600));
+        request.setStatus(VoucherStatus.ACTIVE);
 
         AdminVoucherResponseDTO response = AdminVoucherResponseDTO.builder()
                 .id(1L)
@@ -104,7 +109,7 @@ class VoucherControllerTest {
 
         when(voucherService.createVoucherConfig(any())).thenReturn(response);
 
-        mockMvc.perform(post("/api/v1/vouchers")
+        mockMvc.perform(post("/api/v1/admin/vouchers")
                 .with(user(adminUser))
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -126,7 +131,7 @@ class VoucherControllerTest {
 
         when(voucherService.getAllVoucherConfigs(any(), any(), org.mockito.ArgumentMatchers.any())).thenReturn(pageResponse);
 
-        mockMvc.perform(get("/api/v1/vouchers")
+        mockMvc.perform(get("/api/v1/admin/vouchers")
                 .with(user(adminUser)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.items[0].id").value(1L));

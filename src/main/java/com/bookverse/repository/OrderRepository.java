@@ -22,6 +22,8 @@ public interface OrderRepository extends JpaRepository<Order, Long>, JpaSpecific
 
     boolean existsByUserIdAndStatus(Long userId, com.bookverse.enums.OrderStatus status);
 
+    boolean existsByGiftWrapId(Long giftWrapId);
+
     List<Order> findTop5ByUserIdOrderByCreatedAtDesc(Long userId);
 
     Optional<Order> findByGuestEmailAndIdempotencyKey(String guestEmail, String idempotencyKey);

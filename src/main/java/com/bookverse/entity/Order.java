@@ -86,6 +86,10 @@ public class Order extends BaseEntity {
     @JoinColumn(name = "user_voucher_id")
     private UserVoucher userVoucher;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "gift_wrap_id")
+    private GiftWrap giftWrap;
+
     @Column(name = "address_snapshot", nullable = false, columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
     private String addressSnapshot;

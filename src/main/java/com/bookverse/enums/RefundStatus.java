@@ -1,0 +1,17 @@
+package com.bookverse.enums;
+
+public enum RefundStatus {
+    RETURN_REQUESTED,
+    WAITING_EVIDENCE,
+    UNDER_REVIEW,
+    APPROVED,
+    REJECTED,
+    PICKUP_PENDING,
+    RETURN_RECEIVED,
+    INSPECTING,
+    RESHIP_PENDING,
+    EXCHANGE_SHIPPING,
+    REFUND_PROCESSING,
+    REFUND_COMPLETED,
+    COMPLETED
+}
