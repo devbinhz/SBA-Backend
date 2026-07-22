@@ -264,7 +264,7 @@ class RefundRequestServiceImplTest {
     @Test
     void approve_whenNotUnderReview_throwsConflict() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.MISSING_BOOK).status(RefundStatus.PICKUP_PENDING).build();
+                .reason(RefundReason.WRONG_BOOK).status(RefundStatus.PICKUP_PENDING).build();
         ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
 
         when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
