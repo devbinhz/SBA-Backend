@@ -7,8 +7,10 @@ import com.bookverse.dto.request.campaign.CampaignUpdateRequestDTO;
 import com.bookverse.dto.response.campaign.AdminCampaignResponseDTO;
 import com.bookverse.dto.response.campaign.CampaignResponseDTO;
 import com.bookverse.entity.Campaign;
+import com.bookverse.entity.Voucher;
 import com.bookverse.mapper.CampaignMapper;
 import com.bookverse.repository.CampaignRepository;
+import com.bookverse.repository.VoucherRepository;
 import com.bookverse.service.campaign.CampaignService;
 import com.bookverse.enums.CampaignStatus;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.List;
 public class CampaignServiceImpl implements CampaignService {
 
     private final CampaignRepository campaignRepository;
+    private final VoucherRepository voucherRepository;
     private final CampaignMapper campaignMapper;
 
     @Override
@@ -40,6 +43,15 @@ public class CampaignServiceImpl implements CampaignService {
                 .build();
         
         campaign = campaignRepository.save(campaign);
+
+        if (request.getVoucherIds() != null && !request.getVoucherIds().isEmpty()) {
+            List<Voucher> vouchers = voucherRepository.findAllById(request.getVoucherIds());
+            for (Voucher voucher : vouchers) {
+                voucher.setCampaign(campaign);
+            }
+            voucherRepository.saveAll(vouchers);
+        }
+
         return campaignMapper.toAdminResponse(campaign);
     }
 
@@ -57,6 +69,25 @@ public class CampaignServiceImpl implements CampaignService {
         campaign.setStatus(request.getStatus());
 
         campaign = campaignRepository.save(campaign);
+
+        if (request.getVoucherIds() != null) {
+            List<Voucher> oldVouchers = voucherRepository.findAllByCampaignId(id);
+            for (Voucher voucher : oldVouchers) {
+                if (!request.getVoucherIds().contains(voucher.getId())) {
+                    voucher.setCampaign(null);
+                }
+            }
+            voucherRepository.saveAll(oldVouchers);
+
+            if (!request.getVoucherIds().isEmpty()) {
+                List<Voucher> newVouchers = voucherRepository.findAllById(request.getVoucherIds());
+                for (Voucher voucher : newVouchers) {
+                    voucher.setCampaign(campaign);
+                }
+                voucherRepository.saveAll(newVouchers);
+            }
+        }
+
         return campaignMapper.toAdminResponse(campaign);
     }
 

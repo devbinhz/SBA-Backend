@@ -28,6 +28,9 @@ public interface VoucherRepository extends JpaRepository<Voucher, Long> {
     @Query("SELECT v FROM Voucher v WHERE v.campaign.id = :campaignId AND v.status = :status AND v.startTime <= :now AND v.endTime >= :now AND v.claimedQuantity < v.totalQuantity")
     List<Voucher> findAvailableVouchersForCampaign(@Param("campaignId") Long campaignId, @Param("status") VoucherStatus status, @Param("now") Instant now);
 
-    @Query("SELECT v FROM Voucher v WHERE v.status = 'ACTIVE' AND v.startTime <= :now AND v.endTime >= :now AND v.claimedQuantity < v.totalQuantity")
+    @Query("SELECT v FROM Voucher v WHERE v.status = 'ACTIVE' AND v.startTime <= :now AND v.endTime >= :now AND v.claimedQuantity < v.totalQuantity " +
+           "AND (v.campaign IS NULL OR (v.campaign.isAutoDistributed = false AND v.campaign.status = 'ACTIVE' AND v.campaign.startTime <= :now AND (v.campaign.endTime IS NULL OR v.campaign.endTime >= :now)))")
     Page<Voucher> findActiveVouchers(@Param("now") Instant now, Pageable pageable);
+
+    List<Voucher> findAllByCampaignId(Long campaignId);
 }

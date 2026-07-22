@@ -6,6 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.Instant;
+import java.util.List;
+import java.util.ArrayList;
 
 @Data
 public class CampaignUpdateRequestDTO {
@@ -25,4 +27,6 @@ public class CampaignUpdateRequestDTO {
 
     @NotNull(message = "Status is required")
     private CampaignStatus status;
+
+    private List<Long> voucherIds = new ArrayList<>();
 }
