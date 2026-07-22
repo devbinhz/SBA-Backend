@@ -2,7 +2,6 @@ package com.bookverse.entity;
 
 import com.bookverse.enums.RefundReason;
 import com.bookverse.enums.RefundStatus;
-import com.bookverse.enums.ResolutionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -51,9 +50,6 @@ public class RefundRequest extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "change_of_mind_acknowledged")
-    private Boolean changeOfMindAcknowledged;
-
     @Column(name = "requested_amount", nullable = false)
     private Long requestedAmount;
 
@@ -67,13 +63,9 @@ public class RefundRequest extends BaseEntity {
     private String bankAccountHolder;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'RETURN_REQUESTED'")
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'UNDER_REVIEW'")
     @Default
-    private RefundStatus status = RefundStatus.RETURN_REQUESTED;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "resolution_type", length = 20)
-    private ResolutionType resolutionType;
+    private RefundStatus status = RefundStatus.UNDER_REVIEW;
 
     @Column(name = "decision_note", length = 500)
     private String decisionNote;
@@ -113,15 +105,6 @@ public class RefundRequest extends BaseEntity {
 
     @Column(name = "inspection_note", length = 500)
     private String inspectionNote;
-
-    @Column(name = "replacement_shipping_provider", length = 100)
-    private String replacementShippingProvider;
-
-    @Column(name = "replacement_tracking_code", length = 100)
-    private String replacementTrackingCode;
-
-    @Column(name = "replacement_shipped_at")
-    private Instant replacementShippedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "refund_processed_by_user_id")

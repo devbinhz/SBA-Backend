@@ -35,5 +35,6 @@ public class CreateRefundRequestDTO {
     @Size(max = 255, message = "Bank account holder must be at most 255 characters")
     private String bankAccountHolder;
 
-    private Boolean changeOfMindAcknowledged;
+    @NotEmpty(message = "At least one evidence URL is required")
+    private List<@NotBlank @Size(max = 500) String> evidenceUrls;
 }

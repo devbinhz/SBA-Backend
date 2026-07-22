@@ -5,7 +5,6 @@ import com.bookverse.dto.request.refund.ApproveRefundRequestDTO;
 import com.bookverse.dto.request.refund.CompleteInspectionRequestDTO;
 import com.bookverse.dto.request.refund.CreateRefundRequestDTO;
 import com.bookverse.dto.request.refund.RejectRefundRequestDTO;
-import com.bookverse.dto.request.refund.SubmitEvidenceRequestDTO;
 import com.bookverse.dto.request.refund.SubmitReturnShipmentRequestDTO;
 import com.bookverse.dto.response.refund.RefundRequestResponseDTO;
 import com.bookverse.enums.RefundStatus;
@@ -24,8 +23,6 @@ public interface RefundRequestService {
 
     RefundRequestResponseDTO getForAdmin(Long id);
 
-    RefundRequestResponseDTO submitEvidence(Long customerId, Long orderId, Long id, SubmitEvidenceRequestDTO request);
-
     RefundRequestResponseDTO approve(Long adminId, Long id, ApproveRefundRequestDTO request);
 
     RefundRequestResponseDTO reject(Long adminId, Long id, RejectRefundRequestDTO request);
@@ -37,8 +34,6 @@ public interface RefundRequestService {
     RefundRequestResponseDTO startInspection(Long adminId, Long id);
 
     RefundRequestResponseDTO completeInspection(Long adminId, Long id, CompleteInspectionRequestDTO request);
-
-    RefundRequestResponseDTO submitReplacementShipment(Long adminId, Long id, SubmitReturnShipmentRequestDTO request);
 
     RefundRequestResponseDTO markRefundProcessed(Long adminId, Long id);
 

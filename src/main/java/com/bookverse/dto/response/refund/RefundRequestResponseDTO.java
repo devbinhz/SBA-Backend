@@ -2,7 +2,6 @@ package com.bookverse.dto.response.refund;
 
 import com.bookverse.enums.RefundReason;
 import com.bookverse.enums.RefundStatus;
-import com.bookverse.enums.ResolutionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,7 +22,6 @@ public class RefundRequestResponseDTO {
     private String requestedByName;
     private RefundReason reason;
     private String description;
-    private Boolean changeOfMindAcknowledged;
     private List<RefundRequestItemResponseDTO> items;
     private List<RefundEvidenceResponseDTO> evidence;
     private Long requestedAmount;
@@ -31,7 +29,6 @@ public class RefundRequestResponseDTO {
     private String bankAccountNumber;
     private String bankAccountHolder;
     private RefundStatus status;
-    private ResolutionType resolutionType;
     private String decisionNote;
     private Long decidedByUserId;
     private String decidedByName;
@@ -47,9 +44,6 @@ public class RefundRequestResponseDTO {
     private Instant inspectionStartedAt;
     private Boolean inspectionPassed;
     private String inspectionNote;
-    private String replacementShippingProvider;
-    private String replacementTrackingCode;
-    private Instant replacementShippedAt;
     private Long refundProcessedByUserId;
     private String refundProcessedByName;
     private Instant refundProcessedAt;

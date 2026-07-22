@@ -8,7 +8,6 @@ import com.bookverse.dto.request.refund.CompleteInspectionRequestDTO;
 import com.bookverse.dto.request.refund.CreateRefundRequestDTO;
 import com.bookverse.dto.request.refund.RefundItemSelectionDTO;
 import com.bookverse.dto.request.refund.RejectRefundRequestDTO;
-import com.bookverse.dto.request.refund.SubmitEvidenceRequestDTO;
 import com.bookverse.dto.request.refund.SubmitReturnShipmentRequestDTO;
 import com.bookverse.dto.response.refund.RefundRequestResponseDTO;
 import com.bookverse.entity.Order;
@@ -20,7 +19,6 @@ import com.bookverse.entity.User;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.RefundReason;
 import com.bookverse.enums.RefundStatus;
-import com.bookverse.enums.ResolutionType;
 import com.bookverse.mapper.RefundRequestMapper;
 import com.bookverse.repository.OrderItemRepository;
 import com.bookverse.repository.OrderRepository;
@@ -48,6 +46,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -98,6 +97,7 @@ class RefundRequestServiceImplTest {
         createRequest.setBankName("Test Bank");
         createRequest.setBankAccountNumber("123456789");
         createRequest.setBankAccountHolder("TEST USER");
+        createRequest.setEvidenceUrls(List.of("https://example.com/evidence1.jpg", "https://example.com/evidence2.mp4"));
 
         lenient().when(refundRequestItemRepository.findByRefundRequestIdOrderByIdAsc(any())).thenReturn(List.of());
         lenient().when(refundEvidenceRepository.findByRefundRequestIdOrderByIdAsc(any())).thenReturn(List.of());
@@ -128,7 +128,7 @@ class RefundRequestServiceImplTest {
         });
         when(refundRequestItemRepository.save(any(RefundRequestItem.class))).thenAnswer(i -> i.getArgument(0));
         when(refundRequestMapper.toResponse(any(RefundRequest.class), any(), any()))
-                .thenReturn(RefundRequestResponseDTO.builder().id(200L).status(RefundStatus.RETURN_REQUESTED).requestedAmount(150000L).build());
+                .thenReturn(RefundRequestResponseDTO.builder().id(200L).status(RefundStatus.UNDER_REVIEW).requestedAmount(150000L).build());
 
         RefundRequestResponseDTO response = refundRequestService.createRequest(1L, 50L, createRequest);
 
@@ -137,11 +137,26 @@ class RefundRequestServiceImplTest {
         ArgumentCaptor<RefundRequest> captor = ArgumentCaptor.forClass(RefundRequest.class);
         verify(refundRequestRepository).save(captor.capture());
         assertThat(captor.getValue().getRequestedAmount()).isEqualTo(150000L);
-        assertThat(captor.getValue().getStatus()).isEqualTo(RefundStatus.RETURN_REQUESTED);
+        assertThat(captor.getValue().getStatus()).isEqualTo(RefundStatus.UNDER_REVIEW);
         ArgumentCaptor<RefundRequestItem> itemCaptor = ArgumentCaptor.forClass(RefundRequestItem.class);
         verify(refundRequestItemRepository).save(itemCaptor.capture());
         assertThat(itemCaptor.getValue().getOrderItem()).isEqualTo(orderItem);
         assertThat(itemCaptor.getValue().getQuantity()).isEqualTo(1);
+        ArgumentCaptor<RefundEvidence> evidenceCaptor = ArgumentCaptor.forClass(RefundEvidence.class);
+        verify(refundEvidenceRepository, times(2)).save(evidenceCaptor.capture());
+        assertThat(evidenceCaptor.getAllValues()).extracting(RefundEvidence::getUrl)
+                .containsExactly("https://example.com/evidence1.jpg", "https://example.com/evidence2.mp4");
+    }
+
+    @Test
+    void createRequest_withInsufficientEvidence_throwsBadRequest() {
+        createRequest.setEvidenceUrls(List.of("https://example.com/evidence1.jpg"));
+        when(orderRepository.findById(50L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> refundRequestService.createRequest(1L, 50L, createRequest))
+                .isInstanceOf(BadRequestException.class);
+
+        verify(refundRequestRepository, never()).save(any());
     }
 
     @Test
@@ -226,143 +241,14 @@ class RefundRequestServiceImplTest {
         verify(refundRequestRepository, never()).save(any());
     }
 
-    @Test
-    void createRequest_changeOfMind_withoutAcknowledgement_throwsBadRequest() {
-        createRequest.setReason(RefundReason.CHANGE_OF_MIND);
-        createRequest.setChangeOfMindAcknowledged(false);
-        when(orderRepository.findById(50L)).thenReturn(Optional.of(order));
-
-        assertThatThrownBy(() -> refundRequestService.createRequest(1L, 50L, createRequest))
-                .isInstanceOf(BadRequestException.class);
-
-        verify(refundRequestRepository, never()).save(any());
-    }
-
-    @Test
-    void createRequest_changeOfMind_pastWindow_throwsConflict() {
-        createRequest.setReason(RefundReason.CHANGE_OF_MIND);
-        createRequest.setChangeOfMindAcknowledged(true);
-        order.setDeliveredAt(Instant.now().minus(45, ChronoUnit.DAYS));
-        when(orderRepository.findById(50L)).thenReturn(Optional.of(order));
-
-        assertThatThrownBy(() -> refundRequestService.createRequest(1L, 50L, createRequest))
-                .isInstanceOf(ConflictException.class);
-
-        verify(refundRequestRepository, never()).save(any());
-    }
-
-    // ---------- submitEvidence ----------
-
-    @Test
-    void submitEvidence_belowThreshold_staysWaitingEvidence() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.RETURN_REQUESTED).build();
-        SubmitEvidenceRequestDTO request = new SubmitEvidenceRequestDTO();
-        request.setUrl("https://example.com/evidence1.jpg");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(refundEvidenceRepository.countByRefundRequestId(200L)).thenReturn(1L);
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.submitEvidence(1L, 50L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.WAITING_EVIDENCE);
-        verify(refundEvidenceRepository).save(any(RefundEvidence.class));
-    }
-
-    @Test
-    void submitEvidence_atThreshold_movesToUnderReview() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.WAITING_EVIDENCE).build();
-        SubmitEvidenceRequestDTO request = new SubmitEvidenceRequestDTO();
-        request.setUrl("https://example.com/evidence2.mp4");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(refundEvidenceRepository.countByRefundRequestId(200L)).thenReturn(2L);
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.submitEvidence(1L, 50L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.UNDER_REVIEW);
-    }
-
-    @Test
-    void submitEvidence_whenNotOwner_throwsForbidden() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.RETURN_REQUESTED).build();
-        SubmitEvidenceRequestDTO request = new SubmitEvidenceRequestDTO();
-        request.setUrl("https://example.com/evidence1.jpg");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.submitEvidence(999L, 50L, 200L, request))
-                .isInstanceOf(ForbiddenException.class);
-    }
-
-    @Test
-    void submitEvidence_whenWrongStatus_throwsConflict() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.UNDER_REVIEW).build();
-        SubmitEvidenceRequestDTO request = new SubmitEvidenceRequestDTO();
-        request.setUrl("https://example.com/evidence1.jpg");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.submitEvidence(1L, 50L, 200L, request))
-                .isInstanceOf(ConflictException.class);
-    }
-
     // ---------- approve ----------
 
     @Test
-    void approve_refund_alwaysAllowed_movesToPickupPending() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.CHANGE_OF_MIND).status(RefundStatus.UNDER_REVIEW).build();
-        ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.REFUND);
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.approve(9L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.PICKUP_PENDING);
-        assertThat(refundRequest.getResolutionType()).isEqualTo(ResolutionType.REFUND);
-        assertThat(refundRequest.getDecidedBy()).isEqualTo(admin);
-    }
-
-    @Test
-    void approve_reship_forMissingBook_movesToReshipPending() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.MISSING_BOOK).status(RefundStatus.UNDER_REVIEW).build();
-        ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.RESHIP);
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.approve(9L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.RESHIP_PENDING);
-    }
-
-    @Test
-    void approve_reship_forWrongReason_throwsBadRequest() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.CHANGE_OF_MIND).status(RefundStatus.UNDER_REVIEW).build();
-        ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.RESHIP);
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.approve(9L, 200L, request))
-                .isInstanceOf(BadRequestException.class);
-    }
-
-    @Test
-    void approve_exchange_forEligibleReason_movesToPickupPending() {
+    void approve_success_movesToPickupPending() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
                 .reason(RefundReason.BOOK_DEFECT).status(RefundStatus.UNDER_REVIEW).build();
         ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.EXCHANGE);
+        request.setNote("Approved after evidence review");
 
         when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
         when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
@@ -371,27 +257,15 @@ class RefundRequestServiceImplTest {
         refundRequestService.approve(9L, 200L, request);
 
         assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.PICKUP_PENDING);
-    }
-
-    @Test
-    void approve_exchange_forIneligibleReason_throwsBadRequest() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.CHANGE_OF_MIND).status(RefundStatus.UNDER_REVIEW).build();
-        ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.EXCHANGE);
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.approve(9L, 200L, request))
-                .isInstanceOf(BadRequestException.class);
+        assertThat(refundRequest.getDecisionNote()).isEqualTo("Approved after evidence review");
+        assertThat(refundRequest.getDecidedBy()).isEqualTo(admin);
     }
 
     @Test
     void approve_whenNotUnderReview_throwsConflict() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .reason(RefundReason.CHANGE_OF_MIND).status(RefundStatus.RETURN_REQUESTED).build();
+                .reason(RefundReason.MISSING_BOOK).status(RefundStatus.PICKUP_PENDING).build();
         ApproveRefundRequestDTO request = new ApproveRefundRequestDTO();
-        request.setResolutionType(ResolutionType.REFUND);
 
         when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
 
@@ -420,7 +294,7 @@ class RefundRequestServiceImplTest {
 
     @Test
     void reject_whenNotUnderReview_throwsConflict() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.RETURN_REQUESTED).build();
+        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.PICKUP_PENDING).build();
         RejectRefundRequestDTO request = new RejectRefundRequestDTO();
         request.setNote("Too late");
 
@@ -543,7 +417,7 @@ class RefundRequestServiceImplTest {
     @Test
     void completeInspection_failed_requiresNote_movesToRejected() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .resolutionType(ResolutionType.REFUND).status(RefundStatus.INSPECTING).build();
+                .status(RefundStatus.INSPECTING).build();
         CompleteInspectionRequestDTO request = new CompleteInspectionRequestDTO();
         request.setPassed(false);
         request.setNote("Book was used and damaged");
@@ -560,7 +434,7 @@ class RefundRequestServiceImplTest {
     @Test
     void completeInspection_failedWithoutNote_throwsBadRequest() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .resolutionType(ResolutionType.REFUND).status(RefundStatus.INSPECTING).build();
+                .status(RefundStatus.INSPECTING).build();
         CompleteInspectionRequestDTO request = new CompleteInspectionRequestDTO();
         request.setPassed(false);
 
@@ -573,24 +447,9 @@ class RefundRequestServiceImplTest {
     }
 
     @Test
-    void completeInspection_passed_exchange_movesToExchangeShipping() {
+    void completeInspection_passed_movesToRefundProcessing() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .resolutionType(ResolutionType.EXCHANGE).status(RefundStatus.INSPECTING).build();
-        CompleteInspectionRequestDTO request = new CompleteInspectionRequestDTO();
-        request.setPassed(true);
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.completeInspection(9L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.EXCHANGE_SHIPPING);
-    }
-
-    @Test
-    void completeInspection_passed_refund_movesToRefundProcessing() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .resolutionType(ResolutionType.REFUND).status(RefundStatus.INSPECTING).build();
+                .status(RefundStatus.INSPECTING).build();
         CompleteInspectionRequestDTO request = new CompleteInspectionRequestDTO();
         request.setPassed(true);
 
@@ -605,60 +464,13 @@ class RefundRequestServiceImplTest {
     @Test
     void completeInspection_whenNotInspecting_throwsConflict() {
         RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .resolutionType(ResolutionType.REFUND).status(RefundStatus.RETURN_RECEIVED).build();
+                .status(RefundStatus.RETURN_RECEIVED).build();
         CompleteInspectionRequestDTO request = new CompleteInspectionRequestDTO();
         request.setPassed(true);
 
         when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
 
         assertThatThrownBy(() -> refundRequestService.completeInspection(9L, 200L, request))
-                .isInstanceOf(ConflictException.class);
-    }
-
-    // ---------- submitReplacementShipment ----------
-
-    @Test
-    void submitReplacementShipment_fromReshipPending_success() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.RESHIP_PENDING).build();
-        SubmitReturnShipmentRequestDTO request = new SubmitReturnShipmentRequestDTO();
-        request.setShippingProvider("GHN");
-        request.setTrackingCode("REPL-001");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.submitReplacementShipment(9L, 200L, request);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.RESHIP_PENDING);
-        assertThat(refundRequest.getReplacementTrackingCode()).isEqualTo("REPL-001");
-        assertThat(refundRequest.getReplacementShippedAt()).isNotNull();
-    }
-
-    @Test
-    void submitReplacementShipment_fromExchangeShipping_success() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.EXCHANGE_SHIPPING).build();
-        SubmitReturnShipmentRequestDTO request = new SubmitReturnShipmentRequestDTO();
-        request.setShippingProvider("GHN");
-        request.setTrackingCode("REPL-002");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.submitReplacementShipment(9L, 200L, request);
-
-        assertThat(refundRequest.getReplacementTrackingCode()).isEqualTo("REPL-002");
-    }
-
-    @Test
-    void submitReplacementShipment_whenWrongStatus_throwsConflict() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer).status(RefundStatus.REFUND_PROCESSING).build();
-        SubmitReturnShipmentRequestDTO request = new SubmitReturnShipmentRequestDTO();
-        request.setShippingProvider("GHN");
-        request.setTrackingCode("REPL-003");
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.submitReplacementShipment(9L, 200L, request))
                 .isInstanceOf(ConflictException.class);
     }
 
@@ -702,33 +514,6 @@ class RefundRequestServiceImplTest {
 
         assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.COMPLETED);
         assertThat(refundRequest.getCompletedBy()).isEqualTo(admin);
-    }
-
-    @Test
-    void closeRequest_fromReshipPendingWithTracking_success() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .status(RefundStatus.RESHIP_PENDING).replacementTrackingCode("REPL-001").build();
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-        when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
-        when(refundRequestRepository.save(refundRequest)).thenReturn(refundRequest);
-
-        refundRequestService.closeRequest(9L, 200L);
-
-        assertThat(refundRequest.getStatus()).isEqualTo(RefundStatus.COMPLETED);
-    }
-
-    @Test
-    void closeRequest_fromReshipPendingWithoutTracking_throwsBadRequest() {
-        RefundRequest refundRequest = RefundRequest.builder().id(200L).order(order).requestedBy(customer)
-                .status(RefundStatus.RESHIP_PENDING).build();
-
-        when(refundRequestRepository.findById(200L)).thenReturn(Optional.of(refundRequest));
-
-        assertThatThrownBy(() -> refundRequestService.closeRequest(9L, 200L))
-                .isInstanceOf(BadRequestException.class);
-
-        verify(refundRequestRepository, never()).save(any());
     }
 
     @Test

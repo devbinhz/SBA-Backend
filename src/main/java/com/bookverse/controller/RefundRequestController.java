@@ -6,7 +6,6 @@ import com.bookverse.dto.request.refund.ApproveRefundRequestDTO;
 import com.bookverse.dto.request.refund.CompleteInspectionRequestDTO;
 import com.bookverse.dto.request.refund.CreateRefundRequestDTO;
 import com.bookverse.dto.request.refund.RejectRefundRequestDTO;
-import com.bookverse.dto.request.refund.SubmitEvidenceRequestDTO;
 import com.bookverse.dto.request.refund.SubmitReturnShipmentRequestDTO;
 import com.bookverse.dto.response.refund.RefundRequestResponseDTO;
 import com.bookverse.enums.RefundStatus;
@@ -77,17 +76,6 @@ public class RefundRequestController {
         return ApiResponse.success(Map.of("url", url));
     }
 
-    @PutMapping("/orders/{orderId}/refund-requests/{id}/evidence")
-    @PreAuthorize("hasRole('CUSTOMER')")
-    @Operation(summary = "Submit supporting evidence for a return request (Customer)")
-    public ApiResponse<RefundRequestResponseDTO> submitEvidence(
-            @AuthenticationPrincipal(expression = "user.id") Long userId,
-            @PathVariable Long orderId,
-            @PathVariable Long id,
-            @Valid @RequestBody SubmitEvidenceRequestDTO request) {
-        return ApiResponse.success(refundRequestService.submitEvidence(userId, orderId, id, request), "Evidence submitted successfully");
-    }
-
     @PutMapping("/orders/{orderId}/refund-requests/{id}/return-shipment")
     @PreAuthorize("hasRole('CUSTOMER')")
     @Operation(summary = "Submit return shipping info for an approved return request (Customer)")
@@ -121,7 +109,7 @@ public class RefundRequestController {
 
     @PutMapping("/admin/refund-requests/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Approve a return request and choose a resolution path (Admin)")
+    @Operation(summary = "Approve a return request (Admin)")
     public ApiResponse<RefundRequestResponseDTO> approveRefundRequest(
             @AuthenticationPrincipal(expression = "user.id") Long adminId,
             @PathVariable Long id,
@@ -165,16 +153,6 @@ public class RefundRequestController {
             @PathVariable Long id,
             @Valid @RequestBody CompleteInspectionRequestDTO request) {
         return ApiResponse.success(refundRequestService.completeInspection(adminId, id, request), "Inspection completed");
-    }
-
-    @PutMapping("/admin/refund-requests/{id}/replacement-shipment")
-    @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Submit replacement/reshipment shipping info (Admin)")
-    public ApiResponse<RefundRequestResponseDTO> submitReplacementShipment(
-            @AuthenticationPrincipal(expression = "user.id") Long adminId,
-            @PathVariable Long id,
-            @Valid @RequestBody SubmitReturnShipmentRequestDTO request) {
-        return ApiResponse.success(refundRequestService.submitReplacementShipment(adminId, id, request), "Replacement shipment info submitted");
     }
 
     @PutMapping("/admin/refund-requests/{id}/mark-refund-processed")

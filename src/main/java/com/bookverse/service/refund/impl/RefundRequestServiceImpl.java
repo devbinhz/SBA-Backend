@@ -10,7 +10,6 @@ import com.bookverse.dto.request.refund.CompleteInspectionRequestDTO;
 import com.bookverse.dto.request.refund.CreateRefundRequestDTO;
 import com.bookverse.dto.request.refund.RefundItemSelectionDTO;
 import com.bookverse.dto.request.refund.RejectRefundRequestDTO;
-import com.bookverse.dto.request.refund.SubmitEvidenceRequestDTO;
 import com.bookverse.dto.request.refund.SubmitReturnShipmentRequestDTO;
 import com.bookverse.dto.response.refund.RefundRequestResponseDTO;
 import com.bookverse.entity.Order;
@@ -22,7 +21,6 @@ import com.bookverse.entity.User;
 import com.bookverse.enums.OrderStatus;
 import com.bookverse.enums.RefundReason;
 import com.bookverse.enums.RefundStatus;
-import com.bookverse.enums.ResolutionType;
 import com.bookverse.enums.UserRole;
 import com.bookverse.mapper.RefundRequestMapper;
 import com.bookverse.repository.OrderItemRepository;
@@ -38,7 +36,6 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -57,11 +54,7 @@ public class RefundRequestServiceImpl implements RefundRequestService {
     private static final Set<RefundStatus> TERMINAL_REFUND_STATUSES =
             EnumSet.of(RefundStatus.REJECTED, RefundStatus.COMPLETED);
 
-    private static final Set<RefundReason> EXCHANGE_ELIGIBLE_REASONS =
-            EnumSet.of(RefundReason.WRONG_BOOK, RefundReason.BOOK_DEFECT, RefundReason.DAMAGED_IN_TRANSIT);
-
     private static final int EVIDENCE_SUFFICIENT_COUNT = 2;
-    private static final int CHANGE_OF_MIND_WINDOW_DAYS = 30;
 
     private final RefundRequestRepository refundRequestRepository;
     private final RefundRequestItemRepository refundRequestItemRepository;
@@ -83,15 +76,8 @@ public class RefundRequestServiceImpl implements RefundRequestService {
             throw new ConflictException("Order status does not allow a return request", "ORDER_STATE_INVALID");
         }
 
-        if (request.getReason() == RefundReason.CHANGE_OF_MIND) {
-            if (request.getChangeOfMindAcknowledged() == null || !request.getChangeOfMindAcknowledged()) {
-                throw new BadRequestException("You must acknowledge the change-of-mind return conditions");
-            }
-            if (order.getDeliveredAt() == null
-                    || Duration.between(order.getDeliveredAt(), Instant.now()).toDays() > CHANGE_OF_MIND_WINDOW_DAYS) {
-                throw new ConflictException("Change-of-mind returns must be requested within "
-                        + CHANGE_OF_MIND_WINDOW_DAYS + " days of delivery", "ORDER_STATE_INVALID");
-            }
+        if (request.getEvidenceUrls().size() < EVIDENCE_SUFFICIENT_COUNT) {
+            throw new BadRequestException("At least " + EVIDENCE_SUFFICIENT_COUNT + " evidence files are required");
         }
 
         List<RefundItemSelectionDTO> selections = request.getItems();
@@ -137,12 +123,11 @@ public class RefundRequestServiceImpl implements RefundRequestService {
                 .requestedBy(customer)
                 .reason(request.getReason())
                 .description(request.getDescription())
-                .changeOfMindAcknowledged(request.getChangeOfMindAcknowledged())
                 .requestedAmount(requestedAmount)
                 .bankName(request.getBankName().trim())
                 .bankAccountNumber(request.getBankAccountNumber().trim())
                 .bankAccountHolder(request.getBankAccountHolder().trim())
-                .status(RefundStatus.RETURN_REQUESTED)
+                .status(RefundStatus.UNDER_REVIEW)
                 .build();
         RefundRequest savedRequest = refundRequestRepository.save(refundRequest);
 
@@ -150,6 +135,11 @@ public class RefundRequestServiceImpl implements RefundRequestService {
             item.setRefundRequest(savedRequest);
             refundRequestItemRepository.save(item);
         });
+
+        request.getEvidenceUrls().forEach(url -> refundEvidenceRepository.save(RefundEvidence.builder()
+                .refundRequest(savedRequest)
+                .url(url.trim())
+                .build()));
 
         return toResponse(savedRequest);
     }
@@ -188,43 +178,19 @@ public class RefundRequestServiceImpl implements RefundRequestService {
 
     @Override
     @Transactional
-    public RefundRequestResponseDTO submitEvidence(Long customerId, Long orderId, Long id, SubmitEvidenceRequestDTO request) {
-        RefundRequest refundRequest = getRefundRequestOrThrow(id);
-        assertBelongsToOrderAndCustomer(refundRequest, orderId, customerId);
-        if (refundRequest.getStatus() != RefundStatus.RETURN_REQUESTED && refundRequest.getStatus() != RefundStatus.WAITING_EVIDENCE) {
-            throw new ConflictException("Evidence can only be submitted while the request is awaiting evidence");
-        }
-
-        refundEvidenceRepository.save(RefundEvidence.builder()
-                .refundRequest(refundRequest)
-                .url(request.getUrl().trim())
-                .build());
-
-        long evidenceCount = refundEvidenceRepository.countByRefundRequestId(id);
-        refundRequest.setStatus(evidenceCount >= EVIDENCE_SUFFICIENT_COUNT ? RefundStatus.UNDER_REVIEW : RefundStatus.WAITING_EVIDENCE);
-
-        return toResponse(refundRequestRepository.save(refundRequest));
-    }
-
-    @Override
-    @Transactional
     public RefundRequestResponseDTO approve(Long adminId, Long id, ApproveRefundRequestDTO request) {
         RefundRequest refundRequest = getRefundRequestOrThrow(id);
         if (refundRequest.getStatus() != RefundStatus.UNDER_REVIEW) {
             throw new ConflictException("Return request is not awaiting review");
         }
-        validateResolutionForReason(request.getResolutionType(), refundRequest.getReason());
 
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
 
-        refundRequest.setResolutionType(request.getResolutionType());
         refundRequest.setDecisionNote(request.getNote() == null ? null : request.getNote().trim());
         refundRequest.setDecidedBy(admin);
         refundRequest.setDecidedAt(Instant.now());
-        refundRequest.setStatus(request.getResolutionType() == ResolutionType.RESHIP
-                ? RefundStatus.RESHIP_PENDING
-                : RefundStatus.PICKUP_PENDING);
+        refundRequest.setStatus(RefundStatus.PICKUP_PENDING);
 
         return toResponse(refundRequestRepository.save(refundRequest));
     }
@@ -314,28 +280,7 @@ public class RefundRequestServiceImpl implements RefundRequestService {
         refundRequest.setInspectionPassed(request.getPassed());
         refundRequest.setInspectionNote(request.getNote() == null ? null : request.getNote().trim());
 
-        if (!request.getPassed()) {
-            refundRequest.setStatus(RefundStatus.REJECTED);
-        } else if (refundRequest.getResolutionType() == ResolutionType.EXCHANGE) {
-            refundRequest.setStatus(RefundStatus.EXCHANGE_SHIPPING);
-        } else {
-            refundRequest.setStatus(RefundStatus.REFUND_PROCESSING);
-        }
-
-        return toResponse(refundRequestRepository.save(refundRequest));
-    }
-
-    @Override
-    @Transactional
-    public RefundRequestResponseDTO submitReplacementShipment(Long adminId, Long id, SubmitReturnShipmentRequestDTO request) {
-        RefundRequest refundRequest = getRefundRequestOrThrow(id);
-        if (refundRequest.getStatus() != RefundStatus.RESHIP_PENDING && refundRequest.getStatus() != RefundStatus.EXCHANGE_SHIPPING) {
-            throw new ConflictException("Return request is not awaiting a replacement shipment");
-        }
-
-        refundRequest.setReplacementShippingProvider(request.getShippingProvider().trim());
-        refundRequest.setReplacementTrackingCode(request.getTrackingCode().trim());
-        refundRequest.setReplacementShippedAt(Instant.now());
+        refundRequest.setStatus(request.getPassed() ? RefundStatus.REFUND_PROCESSING : RefundStatus.REJECTED);
 
         return toResponse(refundRequestRepository.save(refundRequest));
     }
@@ -362,13 +307,7 @@ public class RefundRequestServiceImpl implements RefundRequestService {
     @Transactional
     public RefundRequestResponseDTO closeRequest(Long adminId, Long id) {
         RefundRequest refundRequest = getRefundRequestOrThrow(id);
-        boolean canClose = refundRequest.getStatus() == RefundStatus.REFUND_COMPLETED
-                || ((refundRequest.getStatus() == RefundStatus.RESHIP_PENDING || refundRequest.getStatus() == RefundStatus.EXCHANGE_SHIPPING)
-                        && refundRequest.getReplacementTrackingCode() != null);
-        if (!canClose) {
-            if (refundRequest.getStatus() == RefundStatus.RESHIP_PENDING || refundRequest.getStatus() == RefundStatus.EXCHANGE_SHIPPING) {
-                throw new BadRequestException("Submit replacement shipment info before closing this request");
-            }
+        if (refundRequest.getStatus() != RefundStatus.REFUND_COMPLETED) {
             throw new ConflictException("Return request cannot be closed from its current status");
         }
 
@@ -380,15 +319,6 @@ public class RefundRequestServiceImpl implements RefundRequestService {
         refundRequest.setStatus(RefundStatus.COMPLETED);
 
         return toResponse(refundRequestRepository.save(refundRequest));
-    }
-
-    private void validateResolutionForReason(ResolutionType resolutionType, RefundReason reason) {
-        if (resolutionType == ResolutionType.RESHIP && reason != RefundReason.MISSING_BOOK) {
-            throw new BadRequestException("RESHIP is only applicable when the reason is MISSING_BOOK");
-        }
-        if (resolutionType == ResolutionType.EXCHANGE && !EXCHANGE_ELIGIBLE_REASONS.contains(reason)) {
-            throw new BadRequestException("EXCHANGE is only applicable for WRONG_BOOK, BOOK_DEFECT, or DAMAGED_IN_TRANSIT");
-        }
     }
 
     private void assertBelongsToOrderAndCustomer(RefundRequest refundRequest, Long orderId, Long customerId) {

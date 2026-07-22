@@ -8,6 +8,4 @@ import java.util.List;
 public interface RefundEvidenceRepository extends JpaRepository<RefundEvidence, Long> {
 
     List<RefundEvidence> findByRefundRequestIdOrderByIdAsc(Long refundRequestId);
-
-    long countByRefundRequestId(Long refundRequestId);
 }
